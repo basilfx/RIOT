@@ -70,6 +70,12 @@ endif
 ifneq (,$(filter gnrc_nomac,$(USEMODULE)))
     DIRS += link_layer/nomac
 endif
+ifneq (,$(filter gnrc_nrfnet,$(USEMODULE)))
+    DIRS += network_layer/nrfnet
+endif
+ifneq (,$(filter gnrc_nrfnet_frag,$(USEMODULE)))
+    DIRS += network_layer/nrfnet/frag
+endif
 ifneq (,$(filter gnrc_pkt,$(USEMODULE)))
     DIRS += pkt
 endif

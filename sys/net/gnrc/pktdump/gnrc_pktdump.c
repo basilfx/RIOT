@@ -31,6 +31,7 @@
 #include "net/ipv6/hdr.h"
 #include "net/udp.h"
 #include "net/sixlowpan.h"
+#include "net/nrfnet.h"
 #include "od.h"
 
 /**
@@ -54,6 +55,17 @@ static void _dump_snip(gnrc_pktsnip_t *pkt)
         case GNRC_NETTYPE_NETIF:
             printf("NETTYPE_NETIF (%i)\n", pkt->type);
             gnrc_netif_hdr_print(pkt->data);
+            break;
+#endif
+#ifdef MODULE_GNRC_NRFNET
+        case GNRC_NETTYPE_NRFNET:
+            printf("NETTYPE_NRFNET (%i)\n", pkt->type);
+
+            nrfnet_hdr_t hdr;
+            nrfnet_hdr_uncompress(&hdr, (nrfnet_comp_hdr_t *) pkt->data);
+            nrfnet_hdr_dump(&hdr);
+
+            od_hex_dump(pkt->data, pkt->size, OD_WIDTH_DEFAULT);
             break;
 #endif
 #ifdef MODULE_GNRC_SIXLOWPAN

@@ -48,6 +48,14 @@
 #include "periph/rtc.h"
 #endif
 
+#ifdef MODULE_GNRC_NRFNET
+#include "net/gnrc/nrfnet.h"
+#endif
+
+#ifdef MODULE_GNRC_NRFNET_NETIF
+#include "net/gnrc/nrfnet/netif.h"
+#endif
+
 #ifdef MODULE_GNRC_SIXLOWPAN
 #include "net/gnrc/sixlowpan.h"
 #endif
@@ -139,6 +147,10 @@ void auto_init(void)
 #ifdef MODULE_GNRC_PKTDUMP
     DEBUG("Auto init gnrc_pktdump module.\n");
     gnrc_pktdump_init();
+#endif
+#ifdef MODULE_GNRC_NRFNET
+    DEBUG("Auto init gnrc_nrfnet module.\n");
+    gnrc_nrfnet_init();
 #endif
 #ifdef MODULE_GNRC_SIXLOWPAN
     DEBUG("Auto init gnrc_sixlowpan module.\n");

@@ -55,6 +55,9 @@ typedef enum {
 #ifdef MODULE_GNRC_SIXLOWPAN
     GNRC_NETTYPE_SIXLOWPAN,     /**< Protocol is 6LoWPAN */
 #endif
+#ifdef MODULE_GNRC_NRFNET
+    GNRC_NETTYPE_NRFNET,        /**< Protocol is nRFNet */
+#endif
 
     /**
      * @{
