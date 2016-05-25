@@ -1,0 +1,13 @@
+PKG_BUILDDIR ?= $(BINDIRBASE)/pkg/$(BOARD)/picotcp
+PICOTCP_DIR := $(PKG_BUILDDIR)
+PICOTCP_CONTRIB := $(RIOTBASE)/pkg/picotcp/contrib
+
+INCLUDES += -I$(RIOTBASE)/pkg/picotcp/include
+
+ifneq (,$(filter picotcp_conn_tcp,$(USEMODULE)))
+  DIRS += $(PICOTCP_CONTRIB)/conn/tcp
+endif
+
+ifneq (,$(filter picotcp_conn_udp,$(USEMODULE)))
+  DIRS += $(PICOTCP_CONTRIB)/conn/udp
+endif
