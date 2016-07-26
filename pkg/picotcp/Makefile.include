@@ -3,6 +3,7 @@ PICOTCP_DIR := $(PKG_BUILDDIR)
 PICOTCP_CONTRIB := $(RIOTBASE)/pkg/picotcp/contrib
 
 INCLUDES += -I$(RIOTBASE)/pkg/picotcp/include
+INCLUDES += -I$(PKG_BUILDDIR)/build/include
 
 ifneq (,$(filter picotcp_conn_tcp,$(USEMODULE)))
   DIRS += $(PICOTCP_CONTRIB)/conn/tcp
