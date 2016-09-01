@@ -1,0 +1,5 @@
+export CPU_ARCH = cortex-m3
+export CPU_FAM = rtl8710
+
+# include cortexm_common
+include $(RIOTCPU)/Makefile.include.cortexm_common
