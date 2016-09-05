@@ -216,10 +216,10 @@ static void mac_set(enc28j60_t *dev, uint8_t *mac)
 static void on_int(void *arg)
 {
     netdev2_t *netdev = (netdev2_t *)arg;
-    netdev->event_callback(arg, NETDEV2_EVENT_ISR, netdev->isr_arg);
+    netdev->event_callback(arg, NETDEV2_EVENT_ISR);
 }
 
-static int nd_send(netdev2_t *netdev, const struct iovec *data, int count)
+static int nd_send(netdev2_t *netdev, const struct iovec *data, unsigned count)
 {
     enc28j60_t *dev = (enc28j60_t *)netdev;
     uint8_t ctrl = 0;
@@ -230,6 +230,7 @@ static int nd_send(netdev2_t *netdev, const struct iovec *data, int count)
 #ifdef MODULE_NETSTATS_L2
     netdev->stats.tx_bytes += count;
 #endif
+
     /* set write pointer */
     cmd_w_addr(dev, ADDR_WRITE_PTR, BUF_TX_START);
     /* write control byte and the actual data into the buffer */
@@ -247,7 +248,7 @@ static int nd_send(netdev2_t *netdev, const struct iovec *data, int count)
     return c;
 }
 
-static int nd_recv(netdev2_t *netdev, char *buf, int max_len, void *info)
+static int nd_recv(netdev2_t *netdev, void *buf, size_t max_len, void *info)
 {
     enc28j60_t *dev = (enc28j60_t *)netdev;
     uint8_t head[6];
@@ -380,6 +381,9 @@ static int nd_init(netdev2_t *netdev)
     /* allow receiving bytes from now on */
     cmd_bfs(dev, REG_ECON1, -1, ECON1_RXEN);
 
+#ifdef MODULE_NETSTATS_L2
+    memset(&netdev->stats, 0, sizeof(netstats_t));
+#endif
     mutex_unlock(&dev->devlock);
     return 0;
 }
@@ -396,17 +400,17 @@ static void nd_isr(netdev2_t *netdev)
             /* go and tell the new link layer state to upper layers */
             if (cmd_r_phy(dev, REG_PHY_PHSTAT2) & PHSTAT2_LSTAT) {
                 DEBUG("[enc28j60] isr: link up!\n");
-                netdev->event_callback(netdev, NETDEV2_EVENT_LINK_UP, NULL);
+                netdev->event_callback(netdev, NETDEV2_EVENT_LINK_UP);
             }
             else {
                 DEBUG("[enc28j60] isr: link down!\n");
-                netdev->event_callback(netdev, NETDEV2_EVENT_LINK_DOWN, NULL);
+                netdev->event_callback(netdev, NETDEV2_EVENT_LINK_DOWN);
             }
         }
         if (eir & EIR_PKTIF) {
             do {
                 DEBUG("[enc28j60] isr: packet received\n");
-                netdev->event_callback(netdev, NETDEV2_EVENT_RX_COMPLETE, NULL);
+                netdev->event_callback(netdev, NETDEV2_EVENT_RX_COMPLETE);
             } while (cmd_rcr(dev, REG_B1_EPKTCNT, 1) > 0);
         }
         if (eir & EIR_RXERIF) {
@@ -415,7 +419,7 @@ static void nd_isr(netdev2_t *netdev)
         }
         if (eir & EIR_TXIF) {
             DEBUG("[enc28j60] isr: packet transmitted\n");
-            netdev->event_callback(netdev, NETDEV2_EVENT_TX_COMPLETE, NULL);
+            netdev->event_callback(netdev, NETDEV2_EVENT_TX_COMPLETE);
             cmd_bfc(dev, REG_EIR, -1, EIR_TXIF);
         }
         if (eir & EIR_TXERIF) {
@@ -424,9 +428,6 @@ static void nd_isr(netdev2_t *netdev)
         }
         eir = cmd_rcr(dev, REG_EIR, -1);
     }
-#ifdef MODULE_NETSTATS_L2
-    memset(&netdev->stats, 0, sizeof(netstats_t));
-#endif
 }
 
 static int nd_get(netdev2_t *netdev, netopt_t opt, void *value, size_t max_len)

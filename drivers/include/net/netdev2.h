@@ -20,13 +20,20 @@
  *
  * Example call flow:
  *
- * 1. packet arrives -> driver calls netdev2->event_callback with
- *    event==NETDEV_EVENT_ISR (from interrupt routine)
- * 2. event_callback wakes up upper layer thread
- * 3. upper layer calls netdev2->driver.isr()
- * 4. netdev2->driver.isr() calls netdev2->event_callback() with
- *    event==NETDEV_EVENT_RX_COMPLETE
- * 5. netdev2->event_callback() uses netdev2->driver.recv() to fetch packet
+ * 1. packet arrives for device
+ * 2. The driver previously registered an ISR for handling received packets.
+ *    This ISR then calls @ref netdev2_t::event_callback "netdev->event_callback()"
+ *    with `event` := @ref NETDEV2_EVENT_ISR (from Interrupt Service Routine)
+ *    which wakes up event handler
+ * 3. event handler calls @ref netdev2_driver_t::isr "netdev2->driver->isr()"
+ *    (from thread context)
+ * 4. @ref netdev2_driver_t::isr "netdev->driver->isr()" calls
+ *    @ref netdev2_t::event_callback "netdev->event_callback()" with
+ *    `event` := @ref NETDEV2_EVENT_RX_COMPLETE
+ * 5. @ref netdev2_t::event_callback "netdev->event_callback()" uses
+ *    @ref netdev2_driver_t::recv "netdev2->driver->recv()" to fetch packet
+ *
+ * ![RX event example](riot-netdev-rx.svg)
  *
  * @file
  * @brief       Definitions low-level network driver interface
@@ -93,20 +100,22 @@ typedef struct netdev2 netdev2_t;
  * @brief   Event callback for signaling event to upper layers
  *
  * @param[in] type          type of the event
- * @param[in] arg           event argument
  */
-typedef void (*netdev2_event_cb_t)(netdev2_t *dev, netdev2_event_t event, void *arg);
+typedef void (*netdev2_event_cb_t)(netdev2_t *dev, netdev2_event_t event);
 
 /**
  * @brief Structure to hold driver state
  *
  * Supposed to be extended by driver implementations.
  * The extended structure should contain all variable driver state.
+ *
+ * Contains a field @p context which is not used by the drivers, but supposed to
+ * be used by upper layers to store reference information.
  */
 struct netdev2 {
     const struct netdev2_driver *driver;    /**< ptr to that driver's interface. */
     netdev2_event_cb_t event_callback;      /**< callback for device events */
-    void *isr_arg;                          /**< argument to pass on isr event */
+    void* context;                          /**< ptr to network stack context */
 #ifdef MODULE_NETSTATS_L2
     netstats_t stats;                       /**< transceiver's statistics */
 #endif
@@ -128,12 +137,12 @@ typedef struct netdev2_driver {
      *
      * @return nr of bytes sent, or <=0 on error
      */
-    int (*send)(netdev2_t *dev, const struct iovec *vector, int count);
+    int (*send)(netdev2_t *dev, const struct iovec *vector, unsigned count);
 
     /**
      * @brief Get a received frame
      *
-     * Supposed to be called from netdev2_event_handler().
+     * Supposed to be called from @ref netdev2_t::event_callback().
      *
      * If buf == NULL and len == 0, returns the packet size without dropping it.
      * If buf == NULL and len > 0, drops the packet and returns the packet size.
@@ -149,7 +158,7 @@ typedef struct netdev2_driver {
      * @return nr of bytes read if buf != NULL
      * @return packet size if buf == NULL
      */
-    int (*recv)(netdev2_t *dev, char *buf, int len, void *info);
+    int (*recv)(netdev2_t *dev, void *buf, size_t len, void *info);
 
     /**
      * @brief the driver's initialization function
@@ -164,7 +173,7 @@ typedef struct netdev2_driver {
      * This function will be called from a network stack's loop when being notified
      * by netdev2_isr.
      *
-     * It is supposed to call netdev2_event_handler for each occuring event.
+     * It is supposed to call @ref netdev2_t::event_callback() for each occuring event.
      *
      * See receive packet flow description for details.
      *

@@ -98,7 +98,7 @@ void thread_yield(void)
     unsigned old_state = irq_disable();
     thread_t *me = (thread_t *)sched_active_thread;
     if (me->status >= STATUS_ON_RUNQUEUE) {
-        clist_advance(&sched_runqueues[me->priority]);
+        clist_lpoprpush(&sched_runqueues[me->priority]);
     }
     irq_restore(old_state);
 
@@ -227,7 +227,7 @@ kernel_pid_t thread_create(char *stack, int stacksize, char priority, int flags,
 
 #ifdef MODULE_CORE_MSG
     cb->wait_data = NULL;
-    cb->msg_waiters.first = NULL;
+    cb->msg_waiters.next = NULL;
     cib_init(&(cb->msg_queue), 0);
     cb->msg_array = NULL;
 #endif

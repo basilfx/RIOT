@@ -44,6 +44,7 @@ void at86rf2xx_setup(at86rf2xx_t *dev, const at86rf2xx_params_t *params)
     memcpy(&dev->params, params, sizeof(at86rf2xx_params_t));
     dev->idle_state = AT86RF2XX_STATE_TRX_OFF;
     dev->state = AT86RF2XX_STATE_SLEEP;
+    dev->pending_tx = 0;
     /* initialise SPI */
     spi_init_master(dev->params.spi, SPI_CONF_FIRST_RISING, params->spi_speed);
 }
@@ -51,7 +52,12 @@ void at86rf2xx_setup(at86rf2xx_t *dev, const at86rf2xx_params_t *params)
 void at86rf2xx_reset(at86rf2xx_t *dev)
 {
 #if CPUID_LEN
+/* make sure that the buffer is always big enough to store a 64bit value */
+#   if CPUID_LEN < IEEE802154_LONG_ADDRESS_LEN
+    uint8_t cpuid[IEEE802154_LONG_ADDRESS_LEN];
+#   else
     uint8_t cpuid[CPUID_LEN];
+#endif
     eui64_t addr_long;
 #endif
 
@@ -65,23 +71,22 @@ void at86rf2xx_reset(at86rf2xx_t *dev)
     dev->netdev.flags = 0;
     /* set short and long address */
 #if CPUID_LEN
+    /* in case CPUID_LEN < 8, fill missing bytes with zeros */
+    memset(cpuid, 0, CPUID_LEN);
+
     cpuid_get(cpuid);
 
-#if CPUID_LEN < 8
-    /* in case CPUID_LEN < 8, fill missing bytes with zeros */
-    for (int i = CPUID_LEN; i < 8; i++) {
-        cpuid[i] = 0;
-    }
-#else
-    for (int i = 8; i < CPUID_LEN; i++) {
+#if CPUID_LEN > IEEE802154_LONG_ADDRESS_LEN
+    for (int i = IEEE802154_LONG_ADDRESS_LEN; i < CPUID_LEN; i++) {
         cpuid[i & 0x07] ^= cpuid[i];
     }
 #endif
+
     /* make sure we mark the address as non-multicast and not globally unique */
     cpuid[0] &= ~(0x01);
     cpuid[0] |= 0x02;
     /* copy and set long address */
-    memcpy(&addr_long, cpuid, 8);
+    memcpy(&addr_long, cpuid, IEEE802154_LONG_ADDRESS_LEN);
     at86rf2xx_set_addr_long(dev, NTOHLL(addr_long.uint64.u64));
     at86rf2xx_set_addr_short(dev, NTOHS(addr_long.uint16[0].u16));
 #else
@@ -100,7 +105,7 @@ void at86rf2xx_reset(at86rf2xx_t *dev)
     at86rf2xx_set_option(dev, AT86RF2XX_OPT_CSMA, true);
     at86rf2xx_set_option(dev, AT86RF2XX_OPT_TELL_RX_START, false);
     at86rf2xx_set_option(dev, AT86RF2XX_OPT_TELL_RX_END, true);
-#ifdef NETSTATS
+#ifdef MODULE_NETSTATS_L2
     at86rf2xx_set_option(dev, AT86RF2XX_OPT_TELL_TX_END, true);
 #endif
     /* set default protocol */
@@ -181,6 +186,7 @@ void at86rf2xx_tx_prepare(at86rf2xx_t *dev)
 {
     uint8_t state;
 
+    dev->pending_tx++;
     /* make sure ongoing transmissions are finished */
     do {
         state = at86rf2xx_get_status(dev);
@@ -212,33 +218,6 @@ void at86rf2xx_tx_exec(at86rf2xx_t *dev)
                         AT86RF2XX_TRX_STATE__TX_START);
     if (netdev->event_callback &&
         (dev->netdev.flags & AT86RF2XX_OPT_TELL_TX_START)) {
-        netdev->event_callback(netdev, NETDEV2_EVENT_TX_STARTED, NULL);
+        netdev->event_callback(netdev, NETDEV2_EVENT_TX_STARTED);
     }
-}
-
-size_t at86rf2xx_rx_len(at86rf2xx_t *dev)
-{
-    uint8_t phr;
-
-    at86rf2xx_fb_read(dev, &phr, 1);
-
-    /* ignore MSB (refer p.80) and substract length of FCS field */
-    return (size_t)((phr & 0x7f) - 2);
-}
-
-void at86rf2xx_rx_read(at86rf2xx_t *dev, uint8_t *data, size_t len,
-                       size_t offset)
-{
-    /* when reading from SRAM, the different chips from the AT86RF2xx family
-     * behave differently: the AT86F233, the AT86RF232 and the ATRF86212B return
-     * frame length field (PHR) at position 0 and the first data byte at
-     * position 1.
-     * The AT86RF231 does not return the PHR field and return
-     * the first data byte at position 0.
-     */
-#ifndef MODULE_AT86RF231
-    at86rf2xx_sram_read(dev, offset + 1, data, len);
-#else
-    at86rf2xx_sram_read(dev, offset, data, len);
-#endif
 }

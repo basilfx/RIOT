@@ -24,7 +24,7 @@
 #include "bh1750fvi.h"
 #include "bh1750fvi_params.h"
 
-#define RATE        (200 * MS_IN_USEC)      /* 200ms */
+#define RATE        (200LU * MS_IN_USEC)      /* 200ms */
 
 int main(void)
 {
@@ -40,7 +40,7 @@ int main(void)
     while(1) {
         uint16_t val = bh1750fvi_sample(&dev);
         printf("value: %5i lux\n", (int)val);
-        xtimer_usleep_until(&last, RATE);
+        xtimer_periodic_wakeup(&last, RATE);
     }
 
     return 0;

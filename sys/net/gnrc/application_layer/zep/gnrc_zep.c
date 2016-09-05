@@ -357,10 +357,10 @@ static int _get(gnrc_netdev_t *netdev, netopt_t opt, void *value, size_t max_len
             }
 
             if (dev->flags & GNRC_ZEP_FLAGS_DST_ADDR_LONG) {
-                _set_uint16_ptr(value, 8);
+                _set_uint16_ptr(value, IEEE802154_LONG_ADDRESS_LEN);
             }
             else {
-                _set_uint16_ptr(value, 2);
+                _set_uint16_ptr(value, IEEE802154_SHORT_ADDRESS_LEN);
             }
 
             return sizeof(uint16_t);
@@ -371,10 +371,10 @@ static int _get(gnrc_netdev_t *netdev, netopt_t opt, void *value, size_t max_len
             }
 
             if (dev->flags & GNRC_ZEP_FLAGS_SRC_ADDR_LONG) {
-                _set_uint16_ptr(value, 8);
+                _set_uint16_ptr(value, IEEE802154_LONG_ADDRESS_LEN);
             }
             else {
-                _set_uint16_ptr(value, 2);
+                _set_uint16_ptr(value, IEEE802154_SHORT_ADDRESS_LEN);
             }
 
             return sizeof(uint16_t);
@@ -401,11 +401,11 @@ static int _get(gnrc_netdev_t *netdev, netopt_t opt, void *value, size_t max_len
             }
             if (dev->flags & GNRC_ZEP_FLAGS_SRC_ADDR_LONG) {
                 uint64_t addr = byteorder_ltobll(dev->eui64).u64;
-                ieee802154_get_iid(value, (uint8_t *)&addr, 8);
+                ieee802154_get_iid(value, (uint8_t *)&addr, IEEE802154_LONG_ADDRESS_LEN);
             }
             else {
                 uint16_t addr = byteorder_ltobs(dev->addr).u16;
-                ieee802154_get_iid(value, (uint8_t *)&addr, 2);
+                ieee802154_get_iid(value, (uint8_t *)&addr, IEEE802154_SHORT_ADDRESS_LEN);
             }
             return sizeof(eui64_t);
 
@@ -480,11 +480,11 @@ static int _set(gnrc_netdev_t *netdev, netopt_t opt, void *value, size_t value_l
             }
 
             switch (*_get_uint16_ptr(value)) {
-                case 2:
+                case IEEE802154_SHORT_ADDRESS_LEN:
                     dev->flags &= ~GNRC_ZEP_FLAGS_DST_ADDR_LONG;
                     break;
 
-                case 8:
+                case IEEE802154_LONG_ADDRESS_LEN:
                     dev->flags |= GNRC_ZEP_FLAGS_DST_ADDR_LONG;
                     break;
 
@@ -500,11 +500,11 @@ static int _set(gnrc_netdev_t *netdev, netopt_t opt, void *value, size_t value_l
             }
 
             switch (*_get_uint16_ptr(value)) {
-                case 2:
+                case IEEE802154_SHORT_ADDRESS_LEN:
                     dev->flags &= ~GNRC_ZEP_FLAGS_SRC_ADDR_LONG;
                     break;
 
-                case 8:
+                case IEEE802154_LONG_ADDRESS_LEN:
                     dev->flags |= GNRC_ZEP_FLAGS_SRC_ADDR_LONG;
                     break;
 
@@ -561,9 +561,7 @@ void *_event_loop(void *args)
                                    KERNEL_PID_UNDEF
                                  };
 
-    if (msg_init_queue(msg_q, GNRC_ZEP_MSG_QUEUE_SIZE)) {
-        return NULL;
-    }
+    msg_init_queue(msg_q, GNRC_ZEP_MSG_QUEUE_SIZE);
 
     my_reg.pid = thread_getpid();
 
@@ -575,7 +573,7 @@ void *_event_loop(void *args)
         switch (msg.type) {
             case GNRC_NETAPI_MSG_TYPE_RCV:
                 DEBUG("zep: GNRC_NETAPI_MSG_TYPE_RCV\n");
-                ringbuffer_add(&_rx_buf, (char *)(&msg.content.ptr),
+                ringbuffer_add(&_rx_buf, (void*)&msg.content.ptr,
                                sizeof(gnrc_pktsnip_t *));
                 ack.type = GNRC_NETDEV_MSG_TYPE_EVENT;
                 ack.content.value = _EVENT_RX_STARTED;
@@ -584,12 +582,12 @@ void *_event_loop(void *args)
 
             case GNRC_NETAPI_MSG_TYPE_SND:
                 DEBUG("zep: GNRC_NETAPI_MSG_TYPE_SND\n");
-                _send(dev, (gnrc_pktsnip_t *)msg.content.ptr);
+                _send(dev, msg.content.ptr);
                 break;
 
             case GNRC_NETAPI_MSG_TYPE_GET:
                 DEBUG("zep: GNRC_NETAPI_MSG_TYPE_GET\n");
-                opt = (gnrc_netapi_opt_t *)msg.content.ptr;
+                opt = msg.content.ptr;
                 ack.type = GNRC_NETAPI_MSG_TYPE_ACK;
                 ack.content.value = _get(dev, opt->opt, opt->data, opt->data_len);
                 msg_reply(&msg, &ack);
@@ -597,7 +595,7 @@ void *_event_loop(void *args)
 
             case GNRC_NETAPI_MSG_TYPE_SET:
                 DEBUG("zep: GNRC_NETAPI_MSG_TYPE_SET\n");
-                opt = (gnrc_netapi_opt_t *)msg.content.ptr;
+                opt = msg.content.ptr;
                 ack.type = GNRC_NETAPI_MSG_TYPE_ACK;
                 ack.content.value = _set(dev, opt->opt, opt->data, opt->data_len);
                 msg_reply(&msg, &ack);
@@ -889,16 +887,16 @@ static size_t _make_data_frame_hdr(gnrc_zep_t *dev, uint8_t *buf,
         buf[pos++] = 0xff;
         buf[pos++] = 0xff;
     }
-    else if (hdr->dst_l2addr_len == 2) {
+    else if (hdr->dst_l2addr_len == IEEE802154_SHORT_ADDRESS_LEN) {
         uint8_t *dst_addr = gnrc_netif_hdr_get_dst_addr(hdr);
         buf[pos++] = dst_addr[1];
         buf[pos++] = dst_addr[0];
     }
-    else if (hdr->dst_l2addr_len == 8) {
+    else if (hdr->dst_l2addr_len == IEEE802154_LONG_ADDRESS_LEN) {
         buf[1] |= 0x04;
         uint8_t *dst_addr = gnrc_netif_hdr_get_dst_addr(hdr);
 
-        for (int i = 7;  i >= 0; i--) {
+        for (int i = (IEEE802154_LONG_ADDRESS_LEN - 1);  i >= 0; i--) {
             buf[pos++] = dst_addr[i];
         }
     }
@@ -919,12 +917,12 @@ static size_t _make_data_frame_hdr(gnrc_zep_t *dev, uint8_t *buf,
     /* fill in source address */
     if (dev->flags & GNRC_ZEP_FLAGS_SRC_ADDR_LONG) {
         buf[1] |= 0x40;
-        memcpy(&(buf[pos]), &dev->eui64, 8);
-        pos += 8;
+        memcpy(&(buf[pos]), &dev->eui64, IEEE802154_LONG_ADDRESS_LEN);
+        pos += IEEE802154_LONG_ADDRESS_LEN;
     }
     else {
-        memcpy(&(buf[pos]), &dev->addr, 2);
-        pos += 2;
+        memcpy(&(buf[pos]), &dev->addr, IEEE802154_SHORT_ADDRESS_LEN);
+        pos += IEEE802154_SHORT_ADDRESS_LEN;
     }
 
     /* set sequence number */
@@ -962,10 +960,10 @@ static size_t _get_frame_hdr_len(uint8_t *mhr)
         }
 
         if (tmp == IEEE802154_FCF_SRC_ADDR_SHORT) {
-            return (len + 2);
+            return (len + IEEE802154_SHORT_ADDRESS_LEN);
         }
         else if (tmp == IEEE802154_FCF_SRC_ADDR_LONG) {
-            return (len + 8);
+            return (len + IEEE802154_LONG_ADDRESS_LEN);
         }
     }
 
@@ -984,10 +982,10 @@ gnrc_pktsnip_t *_make_netif_hdr(uint8_t *mhr)
     tmp = mhr[1] & IEEE802154_FCF_SRC_ADDR_MASK;
 
     if (tmp == IEEE802154_FCF_SRC_ADDR_SHORT) {
-        src_len = 2;
+        src_len = IEEE802154_SHORT_ADDRESS_LEN;
     }
     else if (tmp == IEEE802154_FCF_SRC_ADDR_LONG) {
-        src_len = 8;
+        src_len = IEEE802154_LONG_ADDRESS_LEN;
     }
     else if (tmp == 0) {
         src_len = 0;
@@ -999,10 +997,10 @@ gnrc_pktsnip_t *_make_netif_hdr(uint8_t *mhr)
     tmp = mhr[1] & IEEE802154_FCF_DST_ADDR_MASK;
 
     if (tmp == IEEE802154_FCF_DST_ADDR_SHORT) {
-        dst_len = 2;
+        dst_len = IEEE802154_SHORT_ADDRESS_LEN;
     }
     else if (tmp == IEEE802154_FCF_DST_ADDR_LONG) {
-        dst_len = 8;
+        dst_len = IEEE802154_LONG_ADDRESS_LEN;
     }
     else if (tmp == 0) {
         dst_len = 0;

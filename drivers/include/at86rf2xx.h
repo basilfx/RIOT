@@ -63,12 +63,18 @@ extern "C" {
 /* the AT86RF212B has a sub-1GHz radio */
 #define AT86RF2XX_MIN_CHANNEL           (0)
 #define AT86RF2XX_MAX_CHANNEL           (10)
+#ifdef DEFAULT_CHANNEL
+#define AT86RF2XX_DEFAULT_CHANNEL (DEFAULT_CHANNEL)
+#endif
 #ifndef AT86RF2XX_DEFAULT_CHANNEL
 #define AT86RF2XX_DEFAULT_CHANNEL       (5)
 #endif
 #else
 #define AT86RF2XX_MIN_CHANNEL           (11U)
 #define AT86RF2XX_MAX_CHANNEL           (26U)
+#ifdef DEFAULT_CHANNEL
+#define AT86RF2XX_DEFAULT_CHANNEL (DEFAULT_CHANNEL)
+#endif
 #ifndef AT86RF2XX_DEFAULT_CHANNEL
 #define AT86RF2XX_DEFAULT_CHANNEL       (26U)
 #endif
@@ -163,6 +169,9 @@ typedef struct {
     uint8_t page;                       /**< currently used channel page */
 #endif
     uint8_t idle_state;                 /**< state to return to after sending */
+    uint8_t pending_tx;                 /**< keep track of pending TX calls
+                                             this is required to know when to
+                                             return to @ref at86rf2xx_t::idle_state */
     /** @} */
 } at86rf2xx_t;
 
@@ -449,26 +458,6 @@ size_t at86rf2xx_tx_load(at86rf2xx_t *dev, uint8_t *data, size_t len,
  * @param[in] dev           device to trigger
  */
 void at86rf2xx_tx_exec(at86rf2xx_t *dev);
-
-/**
- * @brief   Read the length of a received packet
- *
- * @param dev               device to read from
- *
- * @return                  overall length of a received packet in byte
- */
-size_t at86rf2xx_rx_len(at86rf2xx_t *dev);
-
-/**
- * @brief   Read a chunk of data from the receive buffer of the given device
- *
- * @param[in]  dev          device to read from
- * @param[out] data         buffer to write data to
- * @param[in]  len          number of bytes to read from device
- * @param[in]  offset       offset in the receive buffer
- */
-void at86rf2xx_rx_read(at86rf2xx_t *dev, uint8_t *data, size_t len,
-                       size_t offset);
 
 #ifdef __cplusplus
 }

@@ -43,20 +43,22 @@ extern "C" {
 #define PERIPH_SPI_NEEDS_TRANSFER_REGS
 /** @} */
 
+#ifndef DOXYGEN
 /**
  * @brief   Override the ADC resolution configuration
  * @{
  */
 #define HAVE_ADC_RES_T
 typedef enum {
-    ADC_RES_6BIT  = 0x03000000,  /**< ADC resolution: 6 bit */
-    ADC_RES_8BIT  = 0x02000000,  /**< ADC resolution: 8 bit */
-    ADC_RES_10BIT = 0x01000000,  /**< ADC resolution: 10 bit */
-    ADC_RES_12BIT = 0x00000000,  /**< ADC resolution: 12 bit */
-    ADC_RES_14BIT = 1,           /**< ADC resolution: 14 bit (not supported) */
-    ADC_RES_16BIT = 2            /**< ADC resolution: 16 bit (not supported)*/
+    ADC_RES_6BIT  = 0x03000000,     /**< ADC resolution: 6 bit */
+    ADC_RES_8BIT  = 0x02000000,     /**< ADC resolution: 8 bit */
+    ADC_RES_10BIT = 0x01000000,     /**< ADC resolution: 10 bit */
+    ADC_RES_12BIT = 0x00000000,     /**< ADC resolution: 12 bit */
+    ADC_RES_14BIT = 1,              /**< ADC resolution: 14 bit (not supported) */
+    ADC_RES_16BIT = 2               /**< ADC resolution: 16 bit (not supported)*/
 } adc_res_t;
 /** @} */
+#endif /* ndef DOXYGEN */
 
 /**
  * @brief   Generate GPIO mode bitfields
@@ -68,6 +70,7 @@ typedef enum {
  */
 #define GPIO_MODE(io, pr, ot)   ((io << 0) | (pr << 2) | (ot << 4))
 
+#ifndef DOXYGEN
 /**
  * @brief   Override GPIO mode options
  * @{
@@ -82,6 +85,7 @@ typedef enum {
     GPIO_OD_PU = GPIO_MODE(1, 1, 1)     /**< open-drain with pull-up */
 } gpio_mode_t;
 /** @} */
+#endif /* ndef DOXYGEN */
 
 /**
  * @brief   Available ports on the STM32F4 family
@@ -172,7 +176,8 @@ static inline void dma_poweron(int stream)
 {
     if (stream < 8) {
         RCC->AHB1ENR |= RCC_AHB1ENR_DMA1EN;
-    } else {
+    }
+    else {
         RCC->AHB1ENR |= RCC_AHB1ENR_DMA2EN;
     }
 }
@@ -201,6 +206,7 @@ static inline DMA_TypeDef *dma_base(int stream)
 static inline DMA_Stream_TypeDef *dma_stream(int stream)
 {
     uint32_t base = (uint32_t)dma_base(stream);
+
     return (DMA_Stream_TypeDef *)(base + (0x10 + (0x18 * (stream & 0x7))));
 }
 
