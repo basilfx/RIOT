@@ -1,0 +1,103 @@
+From 700275ad64050b10d875b57d097c664356c3b682 Mon Sep 17 00:00:00 2001
+From: Bas Stottelaar <basstottelaar@gmail.com>
+Date: Wed, 14 Sep 2016 22:46:47 +0200
+Subject: [PATCH 1/1] RIOT interface
+
+---
+ Makefile                   |  4 ++++
+ include/arch/pico_riotos.h | 54 ++++++++++++++++++++++++++++++++++++++++++++++
+ include/pico_config.h      |  2 ++
+ 3 files changed, 60 insertions(+)
+ create mode 100644 include/arch/pico_riotos.h
+
+diff --git a/Makefile b/Makefile
+index ac496ee..b74e9bc 100644
+--- a/Makefile
++++ b/Makefile
+@@ -189,6 +189,10 @@ ifeq ($(ARCH),none)
+   CFLAGS+=-DARCHNONE
+ endif
+ 
++ifeq ($(ARCH),riotos)
++  CFLAGS+=-DRIOTOS
++endif
++
+ ifeq ($(ARCH),shared)
+   CFLAGS+=-fPIC
+ endif
+diff --git a/include/arch/pico_riotos.h b/include/arch/pico_riotos.h
+new file mode 100644
+index 0000000..55009f1
+--- /dev/null
++++ b/include/arch/pico_riotos.h
+@@ -0,0 +1,54 @@
++/*
++ * Copyright (C) 2016 Bas Stottelaar <basstottelaar@gmail.com>
++ *
++ * This file is subject to the terms and conditions of the GNU Lesser
++ * General Public License v2.1. See the file LICENSE in the top level
++ * directory for more details.
++ */
++
++/**
++ * @{
++ *
++ * @file
++ * @brief   RIOT-OS interface for picoTCP.
++ * @author  Bas Stottelaar <basstottelaar@gmail.com>
++ *
++ * @}
++ */
++
++#ifndef _INCLUDE_PICO_RIOTOS
++#define _INCLUDE_PICO_RIOTOS
++
++#define ENABLE_DEBUG (0)
++#include "debug.h"
++
++extern uint64_t xtimer_now64();
++
++/**
++ * @brief   Map to RIOT-OS debug macro.
++ */
++#define dbg(...)            DEBUG(...)
++
++/**
++ * @brief   No dynamic allocation of memory is supported.
++ * @{
++ */
++#define pico_zalloc(x)      NULL
++#define pico_free(x)        do {(void) x;} while(0)
++/** @} */
++
++/**
++ * TODO: Not sure what to do here. Block current thread so the idle thread
++ * kicks in?
++ */
++#define PICO_IDLE()         do {} while(0)
++
++/**
++ * @brief   Map time methods to xtimer.
++ * @{
++ */
++#define PICO_TIME()         ((uint32_t) (xtimer_now64() / 1000 / 1000))
++#define PICO_TIME_MS()      ((uint32_t) (xtimer_now64() / 1000))
++/** @} */
++
++#endif /* _INCLUDE_PICO_RIOTOS */
+diff --git a/include/pico_config.h b/include/pico_config.h
+index b37ba63..fb8ef18 100644
+--- a/include/pico_config.h
++++ b/include/pico_config.h
+@@ -190,6 +190,8 @@ static inline uint64_t long_long_be(uint64_t le)
+  *** *** *** *** *** *** ***/
+ #if defined PICO_PORT_CUSTOM
+ # include "pico_port.h"
++#elif defined RIOTOS
++# include "arch/pico_riotos.h"
+ #elif defined CORTEX_M4_HARDFLOAT
+ # include "arch/pico_cortex_m.h"
+ #elif defined CORTEX_M4_SOFTFLOAT
+-- 
+2.8.1
+

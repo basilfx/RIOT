@@ -1,7 +1,8 @@
-APPLICATION = pkg_picotcp
+APPLICATION = picotcp
 include ../Makefile.tests_common
 
 USEMODULE += xtimer
+USEMODULE += shell
 
 USEPKG += picotcp
 

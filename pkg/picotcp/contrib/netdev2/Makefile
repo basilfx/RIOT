@@ -1,3 +1,3 @@
-MODULE := pictcp_netdev2
+MODULE = pictcp_netdev2
 
 include $(RIOTBASE)/Makefile.base

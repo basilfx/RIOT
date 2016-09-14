@@ -189,7 +189,7 @@ int picotcp_netdev2_init(struct pico_device *pico_dev)
     /* initialize pico_device */
 
     if( 0 != pico_device_init(pico_dev, "pico_device", mac)) {
-        dbg ("Device init failed.\n");
+        dbg("Device init failed.\n");
         PICO_FREE(eth_dev);
         return NULL;
     }

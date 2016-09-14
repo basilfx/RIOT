@@ -18,6 +18,7 @@ static char picotcp_stack[PICOTCP_STACKSIZE];
 static void *_picotcp_thread(void *args)
 {
     (void) args;
+
     /* process data and events */
     while (1) {
         pico_stack_tick();
@@ -52,15 +53,16 @@ static int _ping(int argc, char **argv)
     /* assign the IP address to the tap interface */
     pico_string_to_ipv4("192.168.5.4", &ipaddr.addr);
     pico_string_to_ipv4("255.255.255.0", &netmask.addr);
-    pico_ipv4_link_add(pico_dev, ipaddr, netmask);
+    //pico_ipv4_link_add(pico_dev, ipaddr, netmask);
 
     printf("starting ping\n");
     id = pico_icmp4_ping("192.168.5.5", NUM_PING, 1000, 10000, 64, _cb_ping);
 
-    if (id == -1)
+    if (id == -1) {
         return -1;
-    else
+    } else {
         return 0;
+    }
 }
 
 static const shell_command_t shell_commands[] = {
