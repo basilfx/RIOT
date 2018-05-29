@@ -654,6 +654,20 @@ ifneq (,$(filter tsl4531x,$(USEMODULE)))
   USEMODULE += xtimer
 endif
 
+ifneq (,$(filter tpuart,$(USEMODULE)))
+  FEATURES_REQUIRED += periph_uart
+  FEATURES_REQUIRED += periph_uart_modecfg
+  FEATURES_REQUIRED += periph_gpio
+  FEATURES_REQUIRED += periph_gpio_irq
+  USEMODULE += netdev_knx
+  USEMODULE += checksum
+  USEMODULE += iolist
+  USEMODULE += netif
+  USEMODULE += xtimer
+  USEMODULE += isrpipe
+  USEMODULE += isrpipe_read_timeout
+endif
+
 ifneq (,$(filter uart_half_duplex,$(USEMODULE)))
   FEATURES_REQUIRED += periph_gpio
   FEATURES_REQUIRED += periph_uart

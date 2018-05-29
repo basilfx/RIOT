@@ -341,6 +341,11 @@ void auto_init(void)
     auto_init_ncn5120();
 #endif
 
+#ifdef MODULE_TPUART
+    extern void auto_init_tpuart(void);
+    auto_init_tpuart();
+#endif
+
 #endif /* MODULE_AUTO_INIT_GNRC_NETIF */
 
 #ifdef MODULE_GNRC_UHCPC
