@@ -223,6 +223,7 @@ enum {
     NETDEV_TYPE_NRFMIN,
     NETDEV_TYPE_SLIP,
     NETDEV_TYPE_ESP_NOW,
+    NETDEV_TYPE_KNX,
 };
 /** @} */
 
