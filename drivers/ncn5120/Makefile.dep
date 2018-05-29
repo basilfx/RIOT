@@ -1,0 +1,9 @@
+FEATURES_REQUIRED += periph_gpio periph_gpio_irq
+FEATURES_REQUIRED += periph_uart periph_uart_modecfg
+
+USEMODULE += checksum
+USEMODULE += iolist
+USEMODULE += isrpipe
+USEMODULE += isrpipe_read_timeout
+USEMODULE += netdev_knx
+USEMODULE += xtimer
