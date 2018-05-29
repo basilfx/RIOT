@@ -1,0 +1,21 @@
+# Copyright (c) 2020 HAW Hamburg
+#
+# This file is subject to the terms and conditions of the GNU Lesser
+# General Public License v2.1. See the file LICENSE in the top level
+# directory for more details.
+#
+
+config MODULE_TPUART
+    bool "TPUART KNX transceiver"
+    depends on HAS_PERIPH_GPIO
+    depends on HAS_PERIPH_GPIO_IRQ
+    depends on HAS_PERIPH_UART
+    depends on HAS_PERIPH_UART_MODECFG
+    select MODULE_CHECKSUM
+    select MODULE_IOLIST
+    select MODULE_ISRPIPE
+    select MODULE_ISRPIPE_READ_TIMEOUT
+    select MODULE_NETDEV_KNX
+    select MODULE_XTIMER
+    help
+        TPUART KNX transceiver.
