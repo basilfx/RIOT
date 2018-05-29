@@ -421,6 +421,20 @@ ifneq (,$(filter my9221,$(USEMODULE)))
   USEMODULE += xtimer
 endif
 
+ifneq (,$(filter ncn5120,$(USEMODULE)))
+  FEATURES_REQUIRED += periph_uart
+  FEATURES_REQUIRED += periph_uart_modecfg
+  FEATURES_REQUIRED += periph_gpio
+  FEATURES_REQUIRED += periph_gpio_irq
+  USEMODULE += netdev_knx
+  USEMODULE += checksum
+  USEMODULE += iolist
+  USEMODULE += netif
+  USEMODULE += xtimer
+  USEMODULE += isrpipe
+  USEMODULE += isrpipe_read_timeout
+endif
+
 ifneq (,$(filter nvc7356,$(USEMODULE)))
   USEMODULE += can_trx
   FEATURES_REQUIRED += periph_gpio
