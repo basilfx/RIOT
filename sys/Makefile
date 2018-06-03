@@ -182,6 +182,9 @@ endif
 ifneq (,$(filter ztimer_xtimer_compat,$(USEMODULE)))
   FILTER += xtimer
 endif
+ifneq (,$(filter knx,$(USEMODULE)))
+  DIRS += net/knx
+endif
 
 DIRS += $(dir $(wildcard $(addsuffix /Makefile, $(filter-out $(FILTER), $(USEMODULE)))))
 
