@@ -91,6 +91,9 @@ typedef enum {
 #ifdef MODULE_GNRC_ICMPV6
     GNRC_NETTYPE_ICMPV6,        /**< Protocol is ICMPv6 */
 #endif
+#ifdef MODULE_GNRC_KNX_L3
+    GNRC_NETTYPE_KNX_L3,        /**< Protocol is KNX L3 */
+#endif
     /**
      * @}
      */
@@ -104,6 +107,20 @@ typedef enum {
 #endif
 #ifdef MODULE_GNRC_UDP
     GNRC_NETTYPE_UDP,           /**< Protocol is UDP */
+#endif
+#ifdef MODULE_GNRC_KNX_L4
+    GNRC_NETTYPE_KNX_L4,        /**< Protocol is KNX L4 */
+#endif
+    /**
+     * @}
+     */
+
+    /**
+     * @{
+     * @name Application layer
+     */
+#ifdef MODULE_GNRC_KNX_L7
+    GNRC_NETTYPE_KNX_L7,        /**< Protocol is KNX L7 */
 #endif
     /**
      * @}
