@@ -127,6 +127,9 @@ endif
 ifneq (,$(filter gnrc_tcp,$(USEMODULE)))
   DIRS += transport_layer/tcp
 endif
+ifneq (,$(filter gnrc_knx_l3,$(USEMODULE)))
+  DIRS += transport_layer/knx_l3
+endif
 ifneq (,$(filter gnrc_tftp,$(USEMODULE)))
   DIRS += application_layer/tftp
 endif

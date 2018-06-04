@@ -56,6 +56,10 @@
 #include "net/gnrc/tcp.h"
 #endif
 
+#ifdef MODULE_GNRC_KNX_L3
+#include "net/gnrc/knx_l3.h"
+#endif
+
 #ifdef MODULE_LWIP
 #include "lwip.h"
 #endif
@@ -149,6 +153,10 @@ void auto_init(void)
 #ifdef MODULE_GNRC_TCP
     DEBUG("Auto init TCP module\n");
     gnrc_tcp_init();
+#endif
+#ifdef MODULE_GNRC_KNX_L3
+    DEBUG("Auto init KNX L3 module\n");
+    gnrc_knx_l3_init();
 #endif
 #ifdef MODULE_LWIP
     DEBUG("Bootstraping lwIP.\n");
