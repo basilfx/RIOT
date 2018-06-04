@@ -29,6 +29,10 @@ ifneq (,$(filter fmt_table,$(USEMODULE)))
   USEMODULE += fmt
 endif
 
+ifneq (,$(filter gnrc_knx_l3,$(USEMODULE)))
+  DEFAULT_MODULE += auto_init_gnrc_knx_l3
+endif
+
 ifneq (,$(filter i2c_scan,$(USEMODULE)))
   FEATURES_REQUIRED += periph_i2c
 endif

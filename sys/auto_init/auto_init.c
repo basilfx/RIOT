@@ -103,6 +103,11 @@ void auto_init(void)
         extern void gnrc_tcp_init(void);
         gnrc_tcp_init();
     }
+    if (IS_USED(MODULE_AUTO_INIT_GNRC_KNX_L3)) {
+        LOG_DEBUG("Auto init gnrc_knx_l3.\n");
+        extern void gnrc_knx_l3_init(void);
+        gnrc_knx_l3_init();
+    }
     if (IS_USED(MODULE_AUTO_INIT_LWIP)) {
         LOG_DEBUG("Bootstraping lwIP.\n");
         extern void lwip_bootstrap(void);
