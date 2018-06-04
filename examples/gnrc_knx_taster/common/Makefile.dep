@@ -1,0 +1,10 @@
+ifneq (,$(filter common_buttons,$(USEMODULE)))
+  FEATURES_REQUIRED += periph_gpio periph_gpio_irq
+  USEMODULE += core_thread_flags
+  USEMODULE += xtimer
+endif
+
+ifneq (,$(filter common_sensors,$(USEMODULE)))
+  USEMODULE += saul_default
+  USEMODULE += xtimer
+endif
