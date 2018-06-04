@@ -60,6 +60,10 @@
 #include "net/gnrc/knx_l3.h"
 #endif
 
+#ifdef MODULE_GNRC_KNX_L4
+#include "net/gnrc/knx_l4.h"
+#endif
+
 #ifdef MODULE_LWIP
 #include "lwip.h"
 #endif
@@ -157,6 +161,10 @@ void auto_init(void)
 #ifdef MODULE_GNRC_KNX_L3
     DEBUG("Auto init KNX L3 module\n");
     gnrc_knx_l3_init();
+#endif
+#ifdef MODULE_GNRC_KNX_L4
+    DEBUG("Auto init KNX L4 module\n");
+    gnrc_knx_l4_init();
 #endif
 #ifdef MODULE_LWIP
     DEBUG("Bootstraping lwIP.\n");
