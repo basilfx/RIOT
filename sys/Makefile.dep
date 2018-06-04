@@ -33,6 +33,11 @@ ifneq (,$(filter gnrc_knx_l3,$(USEMODULE)))
   DEFAULT_MODULE += auto_init_gnrc_knx_l3
 endif
 
+ifneq (,$(filter gnrc_knx_l4,$(USEMODULE)))
+  DEFAULT_MODULE += auto_init_gnrc_knx_l4
+  USEMODULE += xtimer
+endif
+
 ifneq (,$(filter i2c_scan,$(USEMODULE)))
   FEATURES_REQUIRED += periph_i2c
 endif
