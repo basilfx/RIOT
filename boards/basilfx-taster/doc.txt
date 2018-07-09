@@ -1,0 +1,5 @@
+/**
+ * @defgroup    boards_ikea-tradfri IKEA TRÅDFRI modules
+ * @ingroup     boards
+ * @brief       Support for the BasilFX Taster KNX board
+ */
