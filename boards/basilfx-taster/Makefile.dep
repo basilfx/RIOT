@@ -1,0 +1,10 @@
+ifneq (,$(filter saul_default,$(USEMODULE)))
+  USEMODULE += saul_gpio
+  USEMODULE += bmp280
+endif
+
+USEMODULE += devfs
+USEMODULE += mtd_spi_nor
+USEMODULE += stdio_rtt
+
+include $(RIOTCPU)/efm32/Makefile.dep

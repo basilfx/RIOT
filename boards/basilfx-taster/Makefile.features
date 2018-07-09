@@ -1,0 +1,25 @@
+CPU = efm32
+CPU_MODEL = efm32pg12b500f1024gm48
+
+include $(RIOTBOARD)/basilfx-taster/module-features.mk
+
+# Put defined MCU peripherals here (in alphabetical order)
+FEATURES_PROVIDED += periph_adc
+FEATURES_PROVIDED += periph_gpio periph_gpio_irq
+FEATURES_PROVIDED += periph_i2c
+FEATURES_PROVIDED += periph_rtc
+FEATURES_PROVIDED += periph_rtt
+FEATURES_PROVIDED += periph_spi
+FEATURES_PROVIDED += periph_timer
+FEATURES_PROVIDED += periph_uart periph_uart_modecfg
+
+# Put other features for this board (in alphabetical order)
+FEATURES_PROVIDED += riotboot
+
+# Export board version
+ifeq (120,$(BOARD_VERSION))
+  export CFLAGS += -DBOARD_VERSION_120=1
+endif
+ifeq (110,$(BOARD_VERSION))
+  export CFLAGS += -DBOARD_VERSION_110=1
+endif
