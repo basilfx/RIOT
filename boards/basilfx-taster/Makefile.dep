@@ -1,0 +1,12 @@
+ifneq (,$(filter saul_default,$(USEMODULE)))
+  USEMODULE += saul_gpio
+  USEMODULE += efm32_coretemp
+  USEMODULE += bmp280_i2c
+endif
+
+ifneq (,$(filter mtd,$(USEMODULE)))
+  USEMODULE += mtd_spi_nor
+endif
+
+#USEMODULE += devfs
+#USEMODULE += stdio_rtt

@@ -1,0 +1,4 @@
+# setup JLink for flashing
+PROGRAMMER ?= jlink
+JLINK_DEVICE = $(CPU_MODEL)
+JLINK_PRE_FLASH = r
