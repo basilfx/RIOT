@@ -30,6 +30,7 @@
 #include "net/icmpv6.h"
 #include "net/ipv6/addr.h"
 #include "net/ipv6/hdr.h"
+#include "net/knx/telegram.h"
 #include "net/tcp.h"
 #include "net/udp.h"
 #include "net/sixlowpan.h"
@@ -127,6 +128,12 @@ static void _dump_snip(gnrc_pktsnip_t *pkt)
             printf("NETTYPE_LORAWAN (%i)\n", pkt->type);
         break;
 #endif  /* IS_USED(MODULE_GNRC_NETTYPE_LORAWAN) */
+#ifdef IS_USED(MODULE_GNRC_KNX_L3)
+        case GNRC_NETTYPE_KNX_L3:
+            printf("NETTYPE_KNX_L3 (%i)\n", pkt->type);
+            knx_telegram_print(pkt->data, pkt->size);
+            break;
+#endif  /* IS_USED(MODULE_GNRC_KNX_L3) */
 #ifdef TEST_SUITES
         case GNRC_NETTYPE_TEST:
             printf("NETTYPE_TEST (%i)\n", pkt->type);
