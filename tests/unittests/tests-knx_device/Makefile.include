@@ -1,0 +1,2 @@
+USEMODULE += knx
+USEMODULE += knx_device
