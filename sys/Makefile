@@ -188,6 +188,9 @@ endif
 ifneq (,$(filter knx,$(USEMODULE)))
   DIRS += net/knx
 endif
+ifneq (,$(filter knx_device,$(USEMODULE)))
+  DIRS += knx_device/system7
+endif
 
 DIRS += $(dir $(wildcard $(addsuffix /Makefile, $(filter-out $(FILTER), $(USEMODULE)))))
 
