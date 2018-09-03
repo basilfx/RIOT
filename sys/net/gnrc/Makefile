@@ -40,6 +40,9 @@ endif
 ifneq (,$(filter gnrc_knx_l3,$(USEMODULE)))
   DIRS += transport_layer/knx_l3
 endif
+ifneq (,$(filter gnrc_knx_l7,$(USEMODULE)))
+  DIRS += application_layer/knx_l7
+endif
 ifneq (,$(filter gnrc_ndp,$(USEMODULE)))
     DIRS += network_layer/ndp
 endif
