@@ -85,6 +85,9 @@ endif
 ifneq (,$(filter cord_ep,$(USEMODULE)))
   SRC += sc_cord_ep.c
 endif
+ifneq (,$(filter knx_device,$(USEMODULE)))
+  SRC += sc_knx_device.c
+endif
 
 ifneq (,$(filter openwsn,$(USEPKG)))
   SRC += sc_openwsn.c
