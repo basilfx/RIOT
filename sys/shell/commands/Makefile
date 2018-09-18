@@ -76,6 +76,12 @@ endif
 ifneq (,$(filter cord_ep,$(USEMODULE)))
   SRC += sc_cord_ep.c
 endif
+ifneq (,$(filter rdcli,$(USEMODULE)))
+  SRC += sc_rdcli.c
+endif
+ifneq (,$(filter knx_device,$(USEMODULE)))
+  SRC += sc_knx_device.c
+endif
 
 ifneq (,$(filter periph_rtc,$(USEMODULE)))
   SRC += sc_rtc.c

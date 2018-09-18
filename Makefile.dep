@@ -488,6 +488,9 @@ ifneq (,$(filter shell_commands,$(USEMODULE)))
     USEMODULE += nimble_scanlist
     USEMODULE += fmt
   endif
+  ifneq (,$(filter knx_device,$(USEMODULE)))
+    USEMODULE += od
+  endif
 endif
 
 ifneq (,$(filter posix_semaphore,$(USEMODULE)))
