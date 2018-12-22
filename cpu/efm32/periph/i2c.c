@@ -64,7 +64,7 @@ static int _transfer(i2c_t dev, I2C_TransferSeq_TypeDef *transfer)
     while (busy) {
         unsigned int cpsr = irq_disable();
 
-        if (i2c_progress[dev] == i2cTransferInProgress && timeout--) {
+        if (i2c_progress[dev] == i2cTransferInProgress && --timeout) {
             cortexm_sleep_until_event();
         }
         else {

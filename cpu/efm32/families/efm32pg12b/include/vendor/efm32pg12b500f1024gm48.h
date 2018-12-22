@@ -43,15 +43,15 @@
 extern "C" {
 #endif
 
-/**************************************************************************//**
+/***************************************************************************//**
  * @addtogroup Parts
  * @{
- *****************************************************************************/
+ ******************************************************************************/
 
-/**************************************************************************//**
+/***************************************************************************//**
  * @defgroup EFM32PG12B500F1024GM48 EFM32PG12B500F1024GM48
  * @{
- *****************************************************************************/
+ ******************************************************************************/
 
 /** Interrupt Number Definition */
 typedef enum IRQn{
@@ -112,23 +112,23 @@ typedef enum IRQn{
 
 #define CRYPTO_IRQn               CRYPTO0_IRQn /*!< Alias for CRYPTO0_IRQn */
 
-/**************************************************************************//**
+/***************************************************************************//**
  * @defgroup EFM32PG12B500F1024GM48_Core Core
  * @{
  * @brief Processor and Core Peripheral Section
- *****************************************************************************/
-#define __MPU_PRESENT             1 /**< Presence of MPU  */
-#define __FPU_PRESENT             1 /**< Presence of FPU  */
-#define __VTOR_PRESENT            1 /**< Presence of VTOR register in SCB */
-#define __NVIC_PRIO_BITS          3 /**< NVIC interrupt priority bits */
-#define __Vendor_SysTickConfig    0 /**< Is 1 if different SysTick counter is used */
+ ******************************************************************************/
+#define __MPU_PRESENT             1U /**< Presence of MPU  */
+#define __FPU_PRESENT             1U /**< Presence of FPU  */
+#define __VTOR_PRESENT            1U /**< Presence of VTOR register in SCB */
+#define __NVIC_PRIO_BITS          3U /**< NVIC interrupt priority bits */
+#define __Vendor_SysTickConfig    0U /**< Is 1 if different SysTick counter is used */
 
 /** @} End of group EFM32PG12B500F1024GM48_Core */
 
-/**************************************************************************//**
-* @defgroup EFM32PG12B500F1024GM48_Part Part
-* @{
-******************************************************************************/
+/***************************************************************************//**
+ * @defgroup EFM32PG12B500F1024GM48_Part Part
+ * @{
+ ******************************************************************************/
 
 /** Part family */
 #define _EFM32_PEARL_FAMILY                     1  /**< PEARL Gecko MCU Family  */
@@ -240,7 +240,7 @@ typedef enum IRQn{
 #define FLASH_PAGE_SIZE            2048U          /**< Flash Memory page size (interleaving off) */
 #define SRAM_BASE                  (0x20000000UL) /**< SRAM Base Address */
 #define SRAM_SIZE                  (0x00040000UL) /**< Available SRAM Memory */
-#define __CM4_REV                  0x001          /**< Cortex-M4 Core revision r0p1 */
+#define __CM4_REV                  0x0001U        /**< Cortex-M4 Core revision r0p1 */
 #define PRS_CHAN_COUNT             12             /**< Number of PRS channels */
 #define DMA_CHAN_COUNT             8              /**< Number of DMA channels */
 #define EXT_IRQ_COUNT              51             /**< Number of External (NVIC) interrupts */
@@ -322,11 +322,11 @@ typedef enum IRQn{
 
 /** @} End of group EFM32PG12B500F1024GM48_Part */
 
-/**************************************************************************//**
+/***************************************************************************//**
  * @defgroup EFM32PG12B500F1024GM48_Peripheral_TypeDefs Peripheral TypeDefs
  * @{
  * @brief Device Specific Peripheral Register Structures
- *****************************************************************************/
+ ******************************************************************************/
 
 #include "efm32pg12b_msc.h"
 #include "efm32pg12b_emu.h"
@@ -373,10 +373,10 @@ typedef enum IRQn{
 
 /** @} End of group EFM32PG12B500F1024GM48_Peripheral_TypeDefs  */
 
-/**************************************************************************//**
+/***************************************************************************//**
  * @defgroup EFM32PG12B500F1024GM48_Peripheral_Base Peripheral Memory Map
  * @{
- *****************************************************************************/
+ ******************************************************************************/
 
 #define MSC_BASE          (0x400E0000UL) /**< MSC base address  */
 #define EMU_BASE          (0x400E3000UL) /**< EMU base address  */
@@ -426,10 +426,10 @@ typedef enum IRQn{
 
 /** @} End of group EFM32PG12B500F1024GM48_Peripheral_Base */
 
-/**************************************************************************//**
+/***************************************************************************//**
  * @defgroup EFM32PG12B500F1024GM48_Peripheral_Declaration Peripheral Declarations
  * @{
- *****************************************************************************/
+ ******************************************************************************/
 
 #define MSC          ((MSC_TypeDef *) MSC_BASE)             /**< MSC base pointer */
 #define EMU          ((EMU_TypeDef *) EMU_BASE)             /**< EMU base pointer */
@@ -477,10 +477,10 @@ typedef enum IRQn{
 
 /** @} End of group EFM32PG12B500F1024GM48_Peripheral_Declaration */
 
-/**************************************************************************//**
+/***************************************************************************//**
  * @defgroup EFM32PG12B500F1024GM48_Peripheral_Offsets Peripheral Offsets
  * @{
- *****************************************************************************/
+ ******************************************************************************/
 
 #define CRYPTO_OFFSET     0x400 /**< Offset in bytes between CRYPTO instances */
 #define TIMER_OFFSET      0x400 /**< Offset in bytes between TIMER instances */
@@ -499,20 +499,20 @@ typedef enum IRQn{
 
 /** @} End of group EFM32PG12B500F1024GM48_Peripheral_Offsets */
 
-/**************************************************************************//**
+/***************************************************************************//**
  * @defgroup EFM32PG12B500F1024GM48_BitFields Bit Fields
  * @{
- *****************************************************************************/
+ ******************************************************************************/
 
 #include "efm32pg12b_prs_signals.h"
 #include "efm32pg12b_dmareq.h"
 
-/**************************************************************************//**
+/***************************************************************************//**
  * @addtogroup EFM32PG12B500F1024GM48_WTIMER
  * @{
  * @defgroup EFM32PG12B500F1024GM48_WTIMER_BitFields  WTIMER Bit Fields
  * @{
- *****************************************************************************/
+ ******************************************************************************/
 
 /* Bit fields for WTIMER CTRL */
 #define _WTIMER_CTRL_RESETVALUE                     0x00000000UL                              /**< Default value for WTIMER_CTRL */
@@ -2013,10 +2013,10 @@ typedef enum IRQn{
 /** @} */
 /** @} End of group EFM32PG12B500F1024GM48_WTIMER */
 
-/**************************************************************************//**
+/***************************************************************************//**
  * @defgroup EFM32PG12B500F1024GM48_UNLOCK Unlock Codes
  * @{
- *****************************************************************************/
+ ******************************************************************************/
 #define MSC_UNLOCK_CODE      0x1B71 /**< MSC unlock code */
 #define EMU_UNLOCK_CODE      0xADE8 /**< EMU unlock code */
 #define RMU_UNLOCK_CODE      0xE084 /**< RMU unlock code */
