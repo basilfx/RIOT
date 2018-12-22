@@ -21,9 +21,11 @@
 #include <assert.h>
 #include <errno.h>
 
+#include "byteorder.h"
 #include "cpu.h"
 #include "mutex.h"
-#include "byteorder.h"
+#include "pm_layered.h"
+#include "thread.h"
 
 #include "periph_conf.h"
 #include "periph/i2c.h"
@@ -31,6 +33,16 @@
 
 #include "em_cmu.h"
 #include "em_i2c.h"
+
+#define ENABLE_DEBUG 0
+#include "debug.h"
+
+/**
+ * @brief   These power modes will be blocked while an I2C transfer is active
+ */
+#ifndef EFM32_I2C_PM_BLOCKER
+#define EFM32_I2C_PM_BLOCKER 1
+#endif
 
 /**
  * @brief   Large-enough value to have some timeout value for rogue I2C
@@ -57,29 +69,36 @@ static int _transfer(i2c_t dev, I2C_TransferSeq_TypeDef *transfer)
     bool busy = true;
     uint32_t timeout = I2C_TIMEOUT;
 
+    /* block power mode */
+    pm_block(EFM32_I2C_PM_BLOCKER);
+
     /* start the i2c transaction */
+    DEBUG("[i2c] _transfer: starting transfer\n");
+
     i2c_progress[dev] = I2C_TransferInit(i2c_config[dev].dev, transfer);
 
     /* the transfer progresses via the interrupt handler */
     while (busy) {
-        unsigned int cpsr = irq_disable();
-
-        if (i2c_progress[dev] == i2cTransferInProgress && timeout--) {
-            cortexm_sleep_until_event();
+        if (--timeout && i2c_progress[dev] == i2cTransferInProgress) {
+            thread_yield_higher();
         }
         else {
             busy = false;
         }
-
-        irq_restore(cpsr);
     }
+
+    /* unblock power mode */
+    pm_unblock(EFM32_I2C_PM_BLOCKER);
 
     /* check for timeout */
     if (!timeout) {
+        DEBUG("[i2c] _transfer: timeout occurred\n");
         return -ETIMEDOUT;
     }
 
     /* transfer finished, interpret the result */
+    DEBUG("[i2c] _transfer: result is %d\n", i2c_progress[dev]);
+
     switch (i2c_progress[dev]) {
         case i2cTransferDone:
             return 0;
