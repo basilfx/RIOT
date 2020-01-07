@@ -5,3 +5,7 @@ endif
 ifneq (,$(filter periph_rtt,$(USEMODULE)))
   USEMODULE += periph_rtt_series$(EFM32_SERIES)
 endif
+
+ifneq (,$(filter efm32_coretemp,$(USEMODULE)))
+  FEATURES_REQUIRED += periph_adc
+endif

@@ -29,6 +29,9 @@ USEMODULE += pm_layered
 # include vendor device headers
 INCLUDES += -I$(RIOTCPU)/efm32/families/$(EFM32_FAMILY)/include/vendor
 
+# include EFM32 specific driver headers
+INCLUDES += -I$(RIOTCPU)/efm32/include/drivers
+
 # include cortexm_common
 LINKER_SCRIPT = cortexm.ld
 
