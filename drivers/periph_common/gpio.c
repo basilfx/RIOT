@@ -24,24 +24,14 @@
 
 int gpio_init_low(gpio_t pin)
 {
-    int res = gpio_init(pin, GPIO_OUT);
-    if (res) {
-        return res;
-    }
-
     gpio_clear(pin);
-    return 0;
+    return gpio_init(pin, GPIO_OUT);
 }
 
 int gpio_init_high(gpio_t pin)
 {
-    int res = gpio_init(pin, GPIO_OUT);
-    if (res) {
-        return res;
-    }
-
     gpio_set(pin);
-    return 0;
+    return gpio_init(pin, GPIO_OUT);
 }
 
 #endif /* GPIO_HAVE_INIT_LEVEL */
