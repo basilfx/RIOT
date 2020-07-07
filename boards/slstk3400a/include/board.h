@@ -15,6 +15,7 @@
  *
  * @author      Hauke Petersen <hauke.petersen@fu-berlin.de>
  * @author      Bas Stottelaar <basstottelaar@gmail.com>
+ * @author      Akshai M <mail@akshaim.in>
  */
 
 #ifndef BOARD_H
