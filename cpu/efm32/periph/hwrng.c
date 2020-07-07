@@ -30,7 +30,9 @@
 void hwrng_init(void)
 {
     /* enable clocks */
+#if defined(_SILICON_LABS_32B_SERIES_0) || defined(_SILICON_LABS_32B_SERIES_1)
     CMU_ClockEnable(cmuClock_HFPER, true);
+#endif
     CMU_ClockEnable(cmuClock_TRNG0, true);
 
     /* reset and initialize peripheral */

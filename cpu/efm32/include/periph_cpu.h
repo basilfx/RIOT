@@ -30,7 +30,7 @@
 #include "em_gpio.h"
 #include "em_timer.h"
 #include "em_usart.h"
-#ifdef _SILICON_LABS_32B_SERIES_0
+#if defined(_SILICON_LABS_32B_SERIES_0)
 #include "em_dac.h"
 #endif
 
@@ -38,6 +38,7 @@
 extern "C" {
 #endif
 
+#if defined(ADC_COUNT) && ADC_COUNT > 0
 /**
  * @brief   Internal macro for combining ADC resolution (x) with number of
  *          shifts (y).
@@ -79,7 +80,7 @@ typedef struct {
  */
 typedef struct {
     uint8_t dev;                      /**< device index */
-#ifdef _SILICON_LABS_32B_SERIES_0
+#if defined(_SILICON_LABS_32B_SERIES_0)
     ADC_SingleInput_TypeDef input;    /**< input channel */
 #else
     ADC_PosSel_TypeDef input;         /**< input channel */
@@ -87,6 +88,7 @@ typedef struct {
     ADC_Ref_TypeDef reference;        /**< channel voltage reference */
     ADC_AcqTime_TypeDef acq_time;     /**< channel acquisition time */
 } adc_chan_conf_t;
+#endif
 
 /**
  * @brief   Length of CPU ID in octets.
@@ -211,7 +213,7 @@ typedef enum {
 #ifdef AES_CTRL_AES256
 #define HAVE_HWCRYPTO_AES256
 #endif
-#ifdef _SILICON_LABS_32B_SERIES_1
+#if defined(_SILICON_LABS_32B_SERIES_1)
 #define HAVE_HWCRYPTO_SHA1
 #define HAVE_HWCRYPTO_SHA256
 #endif
@@ -240,7 +242,9 @@ typedef struct {
     I2C_TypeDef *dev;       /**< USART device used */
     gpio_t sda_pin;         /**< pin used for SDA */
     gpio_t scl_pin;         /**< pin used for SCL */
+#if defined(_SILICON_LABS_32B_SERIES_0) || defined(_SILICON_LABS_32B_SERIES_1)
     uint32_t loc;           /**< location of I2C pins */
+#endif
     CMU_Clock_TypeDef cmu;  /**< the device CMU channel */
     IRQn_Type irq;          /**< the devices base IRQ channel */
     uint32_t speed;         /**< the bus speed */
@@ -325,7 +329,9 @@ typedef struct {
     gpio_t mosi_pin;        /**< pin used for MOSI */
     gpio_t miso_pin;        /**< pin used for MISO */
     gpio_t clk_pin;         /**< pin used for CLK */
+#if defined(_SILICON_LABS_32B_SERIES_0) || defined(_SILICON_LABS_32B_SERIES_1)
     uint32_t loc;           /**< location of USART pins */
+#endif
     CMU_Clock_TypeDef cmu;  /**< the device CMU channel */
     IRQn_Type irq;          /**< the devices base IRQ channel */
 } spi_dev_t;
@@ -406,7 +412,9 @@ typedef struct {
     void *dev;              /**< UART, USART or LEUART device used */
     gpio_t rx_pin;          /**< pin used for RX */
     gpio_t tx_pin;          /**< pin used for TX */
+#if defined(_SILICON_LABS_32B_SERIES_0) || defined(_SILICON_LABS_32B_SERIES_1)
     uint32_t loc;           /**< location of UART pins */
+#endif
     CMU_Clock_TypeDef cmu;  /**< the device CMU channel */
     IRQn_Type irq;          /**< the devices base IRQ channel */
 } uart_conf_t;

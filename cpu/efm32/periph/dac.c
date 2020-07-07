@@ -39,7 +39,9 @@ int8_t dac_init(dac_t line)
     uint8_t dev = dac_channel_config[line].dev;
 
     /* enable clock */
+#if defined(_SILICON_LABS_32B_SERIES_0) || defined(_SILICON_LABS_32B_SERIES_1)
     CMU_ClockEnable(cmuClock_HFPER, true);
+#endif
     CMU_ClockEnable(dac_config[dev].cmu, true);
 
     /* reset and initialize peripheral */

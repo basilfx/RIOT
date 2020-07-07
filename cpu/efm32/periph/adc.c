@@ -44,7 +44,9 @@ int adc_init(adc_t line)
     mutex_init(&adc_lock[dev]);
 
     /* enable clock */
+#if defined(_SILICON_LABS_32B_SERIES_0) || defined(_SILICON_LABS_32B_SERIES_1)
     CMU_ClockEnable(cmuClock_HFPER, true);
+#endif
     CMU_ClockEnable(adc_config[dev].cmu, true);
 
     /* reset and initialize peripheral */
@@ -77,7 +79,7 @@ int32_t adc_sample(adc_t line, adc_res_t res)
     init.acqTime = adc_channel_config[line].acq_time;
     init.reference = adc_channel_config[line].reference;
     init.resolution = (ADC_Res_TypeDef) (res & 0x0F);
-#ifdef _SILICON_LABS_32B_SERIES_0
+#if defined(_SILICON_LABS_32B_SERIES_0)
     init.input = adc_channel_config[line].input;
 #else
     init.posSel = adc_channel_config[line].input;

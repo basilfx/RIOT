@@ -35,6 +35,16 @@
 
 static mutex_t spi_lock[SPI_NUMOF];
 
+static inline GPIO_Port_TypeDef _port_num(gpio_t pin)
+{
+    return ((pin & 0xf0) >> 4);
+}
+
+static inline uint32_t _pin_num(gpio_t pin)
+{
+    return (pin & 0x0f);
+}
+
 void spi_init(spi_t bus)
 {
     assert(bus < SPI_NUMOF);
@@ -61,7 +71,9 @@ int spi_acquire(spi_t bus, spi_cs_t cs, spi_mode_t mode, spi_clk_t clk)
     mutex_lock(&spi_lock[bus]);
 
     /* power on spi bus */
+#if defined(_SILICON_LABS_32B_SERIES_0) || defined(_SILICON_LABS_32B_SERIES_1)
     CMU_ClockEnable(cmuClock_HFPER, true);
+#endif
     CMU_ClockEnable(spi_config[bus].cmu, true);
 
     USART_InitSync_TypeDef init = USART_INITSYNC_DEFAULT;
@@ -73,16 +85,30 @@ int spi_acquire(spi_t bus, spi_cs_t cs, spi_mode_t mode, spi_clk_t clk)
     USART_InitSync(spi_config[bus].dev, &init);
 
     /* configure pin functions */
-#ifdef _SILICON_LABS_32B_SERIES_0
+#if defined(_SILICON_LABS_32B_SERIES_0)
     spi_config[bus].dev->ROUTE = (spi_config[bus].loc |
                                   USART_ROUTE_RXPEN |
                                   USART_ROUTE_TXPEN |
                                   USART_ROUTE_CLKPEN);
-#else
+#elif defined(_SILICON_LABS_32B_SERIES_1)
     spi_config[bus].dev->ROUTELOC0 = spi_config[bus].loc;
     spi_config[bus].dev->ROUTEPEN = (USART_ROUTEPEN_RXPEN |
                                      USART_ROUTEPEN_TXPEN |
                                      USART_ROUTEPEN_CLKPEN);
+#elif defined(_SILICON_LABS_32B_SERIES_2)
+    GPIO->USARTROUTE[USART_NUM(spi_config[bus].dev)].ROUTEEN =
+        GPIO_USART_ROUTEEN_TXPEN |
+        GPIO_USART_ROUTEEN_RXPEN |
+        GPIO_USART_ROUTEEN_CLKPEN;
+    GPIO->USARTROUTE[USART_NUM(spi_config[bus].dev)].RXROUTE =
+        (_port_num(spi_config[bus].miso_pin) << _GPIO_USART_RXROUTE_PORT_SHIFT) |
+        (_pin_num(spi_config[bus].miso_pin) << _GPIO_USART_RXROUTE_PIN_SHIFT);
+    GPIO->USARTROUTE[USART_NUM(spi_config[bus].dev)].TXROUTE =
+        (_port_num(spi_config[bus].mosi_pin) << _GPIO_USART_TXROUTE_PORT_SHIFT) |
+        (_pin_num(spi_config[bus].mosi_pin) << _GPIO_USART_TXROUTE_PIN_SHIFT);
+    GPIO->USARTROUTE[USART_NUM(spi_config[bus].dev)].CLKROUTE =
+        (_port_num(spi_config[bus].clk_pin) << _GPIO_USART_CLKROUTE_PORT_SHIFT) |
+        (_pin_num(spi_config[bus].clk_pin) << _GPIO_USART_CLKROUTE_PIN_SHIFT);
 #endif
 
     return SPI_OK;

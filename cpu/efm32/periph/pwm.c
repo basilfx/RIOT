@@ -35,7 +35,9 @@ uint32_t pwm_init(pwm_t dev, pwm_mode_t mode, uint32_t freq, uint16_t res)
     }
 
     /* enable clocks */
+#if defined(_SILICON_LABS_32B_SERIES_0) || defined(_SILICON_LABS_32B_SERIES_1)
     CMU_ClockEnable(cmuClock_HFPER, true);
+#endif
     CMU_ClockEnable(pwm_config[dev].cmu, true);
 
     /* calculate the prescaler by determining the best prescaler */
@@ -70,12 +72,14 @@ uint32_t pwm_init(pwm_t dev, pwm_mode_t mode, uint32_t freq, uint16_t res)
         gpio_init(channel.pin, GPIO_OUT);
 
         /* configure pin function */
-#ifdef _SILICON_LABS_32B_SERIES_0
+#if defined(_SILICON_LABS_32B_SERIES_0)
         pwm_config[dev].dev->ROUTE |= (channel.loc |
                                        TIMER_Channel2Route(channel.index));
-#else
+#elif defined(_SILICON_LABS_32B_SERIES_1)
         pwm_config[dev].dev->ROUTELOC0 |= channel.loc;
         pwm_config[dev].dev->ROUTEPEN |= TIMER_Channel2Route(channel.index);
+#elif defined(_SILICON_LABS_32B_SERIES_2)
+
 #endif
 
         /* setup channel */

@@ -16,6 +16,9 @@ endif
 ifneq (,$(filter cpu_efm32pg12b,$(USEMODULE)))
   DIRS += families/efm32pg12b
 endif
+ifneq (,$(filter cpu_efr32bg22,$(USEMODULE)))
+  DIRS += families/efr32bg22
+endif
 ifneq (,$(filter cpu_efr32mg1p,$(USEMODULE)))
   DIRS += families/efr32mg1p
 endif

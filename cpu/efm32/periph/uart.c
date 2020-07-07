@@ -30,8 +30,19 @@
 
 /**
  * @brief   Defines whether LEUART is enabled and supported
+ *
+ * Only available on the Series 0 and Series 1.
  */
 #if EFM32_LEUART_ENABLED && defined(LEUART_COUNT) && LEUART_COUNT > 0
+#define USE_LEUART
+#endif
+
+/**
+ * @brief   Defines whether EUART is enabled and supported
+ *
+ * Only available on the Series 2.
+ */
+#if EFM32_EUART_ENABLED && defined(LEUART_COUNT) && LEUART_COUNT > 0
 #define USE_LEUART
 #endif
 
@@ -40,10 +51,24 @@
 #include "em_leuart_utils.h"
 #endif
 
+#ifdef USE_EUART
+#include "em_euart.h"
+#endif
+
 /**
  * @brief   Allocate memory to store the callback functions
  */
 static uart_isr_ctx_t isr_ctx[UART_NUMOF];
+
+static inline GPIO_Port_TypeDef _port_num(gpio_t pin)
+{
+    return ((pin & 0xf0) >> 4);
+}
+
+static inline uint32_t _pin_num(gpio_t pin)
+{
+    return (pin & 0x0f);
+}
 
 #ifdef USE_LEUART
 /**
@@ -77,7 +102,9 @@ int uart_init(uart_t dev, uint32_t baudrate, uart_rx_cb_t rx_cb, void *arg)
         USART_TypeDef *uart = (USART_TypeDef *) uart_config[dev].dev;
 
         /* enable clocks */
-        CMU_ClockEnable(cmuClock_HFPER, true);
+#if defined(_SILICON_LABS_32B_SERIES_0) || defined(_SILICON_LABS_32B_SERIES_1)
+    CMU_ClockEnable(cmuClock_HFPER, true);
+#endif
         CMU_ClockEnable(uart_config[dev].cmu, true);
 
         /* reset and initialize peripheral */
@@ -89,13 +116,22 @@ int uart_init(uart_t dev, uint32_t baudrate, uart_rx_cb_t rx_cb, void *arg)
         USART_InitAsync(uart, &init);
 
         /* configure pin functions */
-#ifdef _SILICON_LABS_32B_SERIES_0
+#if defined(_SILICON_LABS_32B_SERIES_0)
         uart->ROUTE = (uart_config[dev].loc |
                        USART_ROUTE_RXPEN |
                        USART_ROUTE_TXPEN);
-#else
+#elif defined(_SILICON_LABS_32B_SERIES_1)
         uart->ROUTELOC0 = uart_config[dev].loc;
         uart->ROUTEPEN = USART_ROUTEPEN_RXPEN | USART_ROUTEPEN_TXPEN;
+#elif defined(_SILICON_LABS_32B_SERIES_2)
+        GPIO->USARTROUTE[USART_NUM(uart)].ROUTEEN = GPIO_USART_ROUTEEN_TXPEN |
+                                                    GPIO_USART_ROUTEEN_RXPEN;
+        GPIO->USARTROUTE[USART_NUM(uart)].RXROUTE =
+            (_port_num(uart_config[dev].rx_pin) << _GPIO_USART_RXROUTE_PORT_SHIFT) |
+            (_pin_num(uart_config[dev].rx_pin) << _GPIO_USART_RXROUTE_PIN_SHIFT);
+        GPIO->USARTROUTE[USART_NUM(uart)].TXROUTE =
+            (_port_num(uart_config[dev].tx_pin) << _GPIO_USART_TXROUTE_PORT_SHIFT) |
+            (_pin_num(uart_config[dev].tx_pin) << _GPIO_USART_TXROUTE_PIN_SHIFT);
 #endif
 
         /* enable receive interrupt */
@@ -118,13 +154,15 @@ int uart_init(uart_t dev, uint32_t baudrate, uart_rx_cb_t rx_cb, void *arg)
         LEUART_Init(leuart, &init);
 
         /* configure pin functions */
-#ifdef _SILICON_LABS_32B_SERIES_0
+#if defined(_SILICON_LABS_32B_SERIES_0)
         leuart->ROUTE = (uart_config[dev].loc |
                          LEUART_ROUTE_RXPEN |
                          LEUART_ROUTE_TXPEN);
-#else
+#elif defined(_SILICON_LABS_32B_SERIES_1)
         leuart->ROUTELOC0 = uart_config[dev].loc;
         leuart->ROUTEPEN = LEUART_ROUTEPEN_RXPEN | LEUART_ROUTEPEN_TXPEN;
+#elif defined(_SILICON_LABS_32B_SERIES_2)
+
 #endif
 
         /* enable receive interrupt */

@@ -43,12 +43,20 @@ void board_common_init(void)
 #endif
 
     /* initialize the LEDs */
+#ifdef LED0_PIN
     gpio_init(LED0_PIN, GPIO_OUT);
+#endif
+#ifdef LED1_PIN
     gpio_init(LED1_PIN, GPIO_OUT);
+#endif
 
     /* initialize the push buttons */
+#ifdef PB0_PIN
     gpio_init(PB0_PIN, GPIO_IN);
+#endif
+#ifdef PB1_PIN
     gpio_init(PB1_PIN, GPIO_IN);
+#endif
 
     /* enable power and interrupt controller (for sensors) */
 #ifdef MODULE_SILABS_PIC

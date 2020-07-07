@@ -49,6 +49,16 @@ static volatile I2C_TransferReturn_TypeDef i2c_progress[I2C_NUMOF];
  */
 static mutex_t i2c_lock[I2C_NUMOF];
 
+static inline GPIO_Port_TypeDef _port_num(gpio_t pin)
+{
+    return ((pin & 0xf0) >> 4);
+}
+
+static inline uint32_t _pin_num(gpio_t pin)
+{
+    return (pin & 0x0f);
+}
+
 /**
  * @brief   Start and track an I2C transfer.
  */
@@ -103,7 +113,9 @@ void i2c_init(i2c_t dev)
     mutex_init(&i2c_lock[dev]);
 
     /* enable clocks */
+#if defined(_SILICON_LABS_32B_SERIES_0) || defined(_SILICON_LABS_32B_SERIES_1)
     CMU_ClockEnable(cmuClock_HFPER, true);
+#endif
     CMU_ClockEnable(i2c_config[dev].cmu, true);
 
     /* configure the pins */
@@ -126,12 +138,21 @@ void i2c_init(i2c_t dev)
     I2C_Init(i2c_config[dev].dev, &init);
 
     /* configure pin functions */
-#ifdef _SILICON_LABS_32B_SERIES_0
+#if defined(_SILICON_LABS_32B_SERIES_0)
     i2c_config[dev].dev->ROUTE = (i2c_config[dev].loc |
                                   I2C_ROUTE_SDAPEN | I2C_ROUTE_SCLPEN);
-#else
+#elif defined(_SILICON_LABS_32B_SERIES_1)
     i2c_config[dev].dev->ROUTEPEN = I2C_ROUTEPEN_SDAPEN | I2C_ROUTEPEN_SCLPEN;
     i2c_config[dev].dev->ROUTELOC0 = i2c_config[dev].loc;
+#elif defined(_SILICON_LABS_32B_SERIES_2)
+    GPIO->I2CROUTE[I2C_NUM(i2c_config[dev].dev)].ROUTEEN =
+        GPIO_I2C_ROUTEEN_SCLPEN | GPIO_I2C_ROUTEEN_SDAPEN;
+    GPIO->I2CROUTE[I2C_NUM(i2c_config[dev].dev)].SCLROUTE =
+        (_port_num(i2c_config[dev].scl_pin) << _GPIO_I2C_SCLROUTE_PORT_SHIFT) |
+        (_pin_num(i2c_config[dev].scl_pin) << _GPIO_I2C_SCLROUTE_PIN_SHIFT);
+    GPIO->I2CROUTE[I2C_NUM(i2c_config[dev].dev)].SDAROUTE =
+        (_port_num(i2c_config[dev].sda_pin) << _GPIO_I2C_SDAROUTE_PORT_SHIFT) |
+        (_pin_num(i2c_config[dev].sda_pin) << _GPIO_I2C_SDAROUTE_PIN_SHIFT);
 #endif
 
     /* enable interrupts */

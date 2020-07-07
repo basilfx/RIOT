@@ -70,7 +70,9 @@ int timer_init(tim_t dev, unsigned long freq, timer_cb_t callback, void *arg)
     tim = timer_config[dev].timer.dev;
 
     /* enable clocks */
+#if defined(_SILICON_LABS_32B_SERIES_0) || defined(_SILICON_LABS_32B_SERIES_1)
     CMU_ClockEnable(cmuClock_HFPER, true);
+#endif
     CMU_ClockEnable(timer_config[dev].prescaler.cmu, true);
     CMU_ClockEnable(timer_config[dev].timer.cmu, true);
 
@@ -99,7 +101,11 @@ int timer_init(tim_t dev, unsigned long freq, timer_cb_t callback, void *arg)
     TIMER_TopSet(tim, _is_wtimer(dev) ? 0xffffffff : 0xffff);
 
     /* enable interrupts for the channels */
+#if defined(_SILICON_LABS_32B_SERIES_0) || defined(_SILICON_LABS_32B_SERIES_1)
     TIMER_IntClear(tim, TIMER_IFC_CC0 | TIMER_IFC_CC1 | TIMER_IFC_CC2);
+#elif defined(_SILICON_LABS_32B_SERIES_2)
+    TIMER_IntClear(tim, TIMER_IF_CC0 | TIMER_IF_CC1 | TIMER_IF_CC2);
+#endif
     TIMER_IntEnable(tim, TIMER_IEN_CC0 | TIMER_IEN_CC1 | TIMER_IEN_CC2);
 
     NVIC_ClearPendingIRQ(timer_config[dev].irq);
@@ -126,15 +132,24 @@ int timer_set_absolute(tim_t dev, int channel, unsigned int value)
     }
 
     tim = timer_config[dev].timer.dev;
+#if defined(_SILICON_LABS_32B_SERIES_0) || defined(_SILICON_LABS_32B_SERIES_1)
     tim->CC[channel].CCV = (uint32_t) value;
     tim->CC[channel].CTRL = TIMER_CC_CTRL_MODE_OUTPUTCOMPARE;
+#elif defined(_SILICON_LABS_32B_SERIES_2)
+    tim->CC[channel].OC = (uint32_t) value;
+    tim->CC[channel].CFG = TIMER_CC_CFG_MODE_OUTPUTCOMPARE;
+#endif
 
     return 0;
 }
 
 int timer_clear(tim_t dev, int channel)
 {
+#if defined(_SILICON_LABS_32B_SERIES_0) || defined(_SILICON_LABS_32B_SERIES_1)
     timer_config[dev].timer.dev->CC[channel].CTRL = _TIMER_CC_CTRL_MODE_OFF;
+#elif defined(_SILICON_LABS_32B_SERIES_2)
+    timer_config[dev].timer.dev->CC[channel].CFG = _TIMER_CC_CFG_MODE_OFF;
+#endif
     return 0;
 }
 
@@ -160,8 +175,13 @@ void TIMER_0_ISR(void)
 
     for (int i = 0; i < (int) CC_CHANNELS; i++) {
         if (tim->IF & (TIMER_IF_CC0 << i)) {
+#if defined(_SILICON_LABS_32B_SERIES_0) || defined(_SILICON_LABS_32B_SERIES_1)
             tim->CC[i].CTRL = _TIMER_CC_CTRL_MODE_OFF;
             tim->IFC = (TIMER_IFC_CC0 << i);
+#elif defined(_SILICON_LABS_32B_SERIES_2)
+            tim->CC[i].CFG = _TIMER_CC_CFG_MODE_OFF;
+            tim->IF = (TIMER_IF_CC0 << i);
+#endif
             isr_ctx[0].cb(isr_ctx[0].arg, i);
         }
     }

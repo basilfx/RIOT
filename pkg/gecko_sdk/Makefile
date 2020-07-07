@@ -2,6 +2,7 @@ PKG_NAME=gecko_sdk
 PKG_URL=https://github.com/basilfx/RIOT-gecko-sdk
 PKG_VERSION=31a7f247e19fca16dc961427c53f27f777f7b557
 PKG_LICENSE=Zlib
+PKG_SOURCE_LOCAL=/Users/basilfx/Desktop/RIOT-gecko-sdk
 
 include $(RIOTBASE)/pkg/pkg.mk
 
