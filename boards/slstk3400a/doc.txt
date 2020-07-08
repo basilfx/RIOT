@@ -26,9 +26,9 @@ actively measure the power consumption of your hardware and code, in real-time.
 | FPU             | no                                                   |
 | MPU             | no                                                   |
 | DMA             | 6 channels                                           |
-| Timers          | 3x 16-bit + 1x 16-bit (low power)                    |
+| Timers          | 3x 16-bits                                           |
 | ADCs            | 12-bit ADC                                           |
-| UARTs           | 2x USART, 1x LEUART                         |
+| UARTs           | 2x USART, 1x LEUART                                  |
 | SPIs            | 2x USART                                             |
 | I2Cs            | 1x                                                   |
 | Vcc             | 1.98V - 3.8V                                         |
@@ -59,8 +59,8 @@ PIN 1 is the bottom-left contact when the header faces  you horizontally.
 **Note:** some pins are connected to the board controller, when enabled!
 
 ### Peripheral mapping
-| Peripheral | Number  | Hardware        | Pins                            | Comments                                                  |
-|------------|---------|-----------------|---------------------------------|-----------------------------------------------------------|
+| Peripheral | Number  | Hardware        | Pins                              | Comments                                                  |
+|------------|---------|-----------------|-----------------------------------|-----------------------------------------------------------|
 | ADC        | 0       | ADC0            | CHAN0: internal temperature       | Ports are fixed, 14/16-bit resolution not supported       |
 | I2C        | 0       | I2C0            | SDA: PD6,  CLK: PD7               | `I2C_SPEED_LOW` and `I2C_SPEED_HIGH` clock speed deviate  |
 | HWCRYPTO   | &mdash; | &mdash;         |                                   | AES128                                                    |
