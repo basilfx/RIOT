@@ -175,7 +175,7 @@ typedef uint8_t UINT8;
 typedef uint64_t UINT64;
 typedef UINT64 tKeccakLane;
 
-#if __BYTE_ORDER__ == __ORDER__LITTLE_ENDIAN__
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
 #define LITTLE_ENDIAN
 #endif
 
