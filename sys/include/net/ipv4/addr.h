@@ -51,12 +51,37 @@ extern "C" {
 #define IPV4_ADDR_LOOPBACK          IPV4_ADDR_INIT(127, 0, 0, 1)
 
 /**
+ * @brief   Static initializer for the unspecified IPv4 address (0.0.0.0)
+ */
+#define IPV4_ADDR_UNSPECIFIED       IPV4_ADDR_INIT(0, 0, 0, 0)
+
+/**
+ * @brief   Static initializer for the limited broadcast IPv4 address
+ *          (255.255.255.255)
+ */
+#define IPV4_ADDR_BROADCAST         IPV4_ADDR_INIT(255, 255, 255, 255)
+
+/**
  * @brief Data type to represent an IPv4 address.
  */
 typedef union {
     uint8_t u8[4];          /**< as 4 8-bit unsigned integer */
     network_uint32_t u32;   /**< as 32-bit unsigned integer */
 } ipv4_addr_t;
+
+/**
+ * @brief   The unspecified IPv4 address (0.0.0.0)
+ *
+ * @see @ref IPV4_ADDR_UNSPECIFIED
+ */
+extern const ipv4_addr_t ipv4_addr_unspecified;
+
+/**
+ * @brief   The limited broadcast IPv4 address (255.255.255.255)
+ *
+ * @see @ref IPV4_ADDR_BROADCAST
+ */
+extern const ipv4_addr_t ipv4_addr_broadcast;
 
 /**
  * @brief   Checks if two IPv4 addresses are equal.
@@ -70,6 +95,19 @@ typedef union {
 static inline bool ipv4_addr_equal(const ipv4_addr_t *a, const ipv4_addr_t *b)
 {
     return (a->u32.u32 == b->u32.u32);
+}
+
+/**
+ * @brief   Check if @p addr is unspecified (all zero, 0.0.0.0).
+ *
+ * @param[in] addr  An IPv4 address.
+ *
+ * @return  true, if @p addr is unspecified,
+ * @return  false, otherwise.
+ */
+static inline bool ipv4_addr_is_unspecified(const ipv4_addr_t *addr)
+{
+    return (addr->u32.u32 == 0);
 }
 
 /**
