@@ -42,7 +42,7 @@ extern "C" {
  *
  * @return initialized IPv4 address
  */
-#define IPV4_ADDR_INIT(a, b, c, d) { .u8 = {a, b, c, d} }
+#define IPV4_ADDR_INIT(a, b, c, d) { .u8 = { a, b, c, d } }
 
 /**
  * @brief   Static initializer for the loopback IPv4 address (127.0.0.1)
@@ -86,6 +86,67 @@ static inline bool ipv4_addr_equal(const ipv4_addr_t *a, const ipv4_addr_t *b)
 static inline bool ipv4_addr_is_multicast(const ipv4_addr_t *addr)
 {
     return (addr->u8[0] >= 0xE0 && addr->u8[0] <= 0xEF);
+}
+
+/**
+ * @brief   Converts a prefix length to its equivalent netmask.
+ *
+ * @param[in] prefix_len    Length of the prefix in bits. Must be <= 32.
+ *
+ * @return  The netmask corresponding to @p prefix_len, in network byte order.
+ */
+static inline ipv4_addr_t ipv4_addr_netmask_from_prefix(uint8_t prefix_len)
+{
+    ipv4_addr_t netmask;
+    uint32_t mask = (prefix_len == 0) ? 0 : (UINT32_MAX << (32 - prefix_len));
+
+    netmask.u32 = byteorder_htonl(mask);
+    return netmask;
+}
+
+/**
+ * @brief   Converts a netmask to its equivalent prefix length.
+ *
+ * @note    Only the leading run of one bits is counted; a non-contiguous
+ *          netmask is not detected as such and any bits after the first
+ *          zero bit are ignored.
+ *
+ * @param[in] netmask   A netmask, in network byte order.
+ *
+ * @return  The number of leading one bits of @p netmask.
+ */
+static inline uint8_t ipv4_addr_prefix_from_netmask(const ipv4_addr_t *netmask)
+{
+    uint32_t mask = byteorder_ntohl(netmask->u32);
+    uint8_t prefix_len = 0;
+
+    while (mask & 0x80000000) {
+        prefix_len++;
+        mask <<= 1;
+    }
+
+    return prefix_len;
+}
+
+/**
+ * @brief   Checks if @p a and @p b are on the same network, given
+ *          @p prefix_len.
+ *
+ * @param[in] a             An IPv4 address.
+ * @param[in] b             Another IPv4 address.
+ * @param[in] prefix_len    Length of the network prefix in bits, as shared
+ *                          by @p a and @p b. Must be <= 32.
+ *
+ * @return  true, if the first @p prefix_len bits of @p a and @p b are equal.
+ * @return  false, otherwise.
+ */
+static inline bool ipv4_addr_match_prefix(const ipv4_addr_t *a,
+                                          const ipv4_addr_t *b,
+                                          uint8_t prefix_len)
+{
+    ipv4_addr_t netmask = ipv4_addr_netmask_from_prefix(prefix_len);
+
+    return (a->u32.u32 & netmask.u32.u32) == (b->u32.u32 & netmask.u32.u32);
 }
 
 /**
