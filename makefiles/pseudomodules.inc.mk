@@ -190,16 +190,34 @@ PSEUDOMODULES += gnrc_netif_timestamp
 ## @addtogroup 	net_gnrc_nettype
 ## @{
 
+## @defgroup 	net_gnrc_nettype_arp        gnrc_nettype_arp
+## Enables @ref GNRC_NETTYPE_ARP.
+## @{
+PSEUDOMODULES += gnrc_nettype_arp
+## @}
+
 ## @defgroup 	net_gnrc_nettype_ccn        gnrc_nettype_ccn
 ## @{
 ## Enables @ref GNRC_NETTYPE_CCN and @ref GNRC_NETTYPE_CCN_CHUNK
 PSEUDOMODULES += gnrc_nettype_ccn
 ## @}
 
+## @defgroup 	net_gnrc_nettype_icmpv4     gnrc_nettype_icmpv4
+## Enables @ref GNRC_NETTYPE_ICMPV4.
+## @{
+PSEUDOMODULES += gnrc_nettype_icmpv4
+## @}
+
 ## @defgroup 	net_gnrc_nettype_icmpv6     gnrc_nettype_icmpv6
 ## Enables @ref GNRC_NETTYPE_ICMPV6.
 ## @{
 PSEUDOMODULES += gnrc_nettype_icmpv6
+## @}
+
+## @defgroup 	net_gnrc_nettype_ipv4       gnrc_nettype_ipv4
+## Enables @ref GNRC_NETTYPE_IPV4.
+## @{
+PSEUDOMODULES += gnrc_nettype_ipv4
 ## @}
 
 ## @defgroup 	net_gnrc_nettype_ipv6       gnrc_nettype_ipv6

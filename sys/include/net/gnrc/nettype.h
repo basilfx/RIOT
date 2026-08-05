@@ -75,6 +75,15 @@ typedef enum {
      * @{
      * @name Network layer
      */
+#if IS_USED(MODULE_GNRC_NETTYPE_ARP) || defined(DOXYGEN)
+    GNRC_NETTYPE_ARP,           /**< Protocol is ARP */
+#endif
+#if IS_USED(MODULE_GNRC_NETTYPE_IPV4) || defined(DOXYGEN)
+    GNRC_NETTYPE_IPV4,          /**< Protocol is IPv4 */
+#endif
+#if IS_USED(MODULE_GNRC_NETTYPE_ICMPV4) || defined(DOXYGEN)
+    GNRC_NETTYPE_ICMPV4,        /**< Protocol is ICMPv4 */
+#endif
 #if IS_USED(MODULE_GNRC_NETTYPE_IPV6) || defined(DOXYGEN)
     GNRC_NETTYPE_IPV6,          /**< Protocol is IPv6 */
 #endif
@@ -162,6 +171,14 @@ typedef enum {
 static inline gnrc_nettype_t gnrc_nettype_from_ethertype(uint16_t type)
 {
     switch (type) {
+#if IS_USED(MODULE_GNRC_NETTYPE_ARP)
+        case ETHERTYPE_ARP:
+            return GNRC_NETTYPE_ARP;
+#endif
+#if IS_USED(MODULE_GNRC_NETTYPE_IPV4)
+        case ETHERTYPE_IPV4:
+            return GNRC_NETTYPE_IPV4;
+#endif
 #if IS_USED(MODULE_GNRC_NETTYPE_IPV6)
         case ETHERTYPE_IPV6:
             return GNRC_NETTYPE_IPV6;
@@ -207,6 +224,14 @@ static inline uint16_t gnrc_nettype_to_ethertype(gnrc_nettype_t type)
         case GNRC_NETTYPE_SIXLOWPAN:
             return ETHERTYPE_6LOENC;
 #endif
+#if IS_USED(MODULE_GNRC_NETTYPE_ARP)
+        case GNRC_NETTYPE_ARP:
+            return ETHERTYPE_ARP;
+#endif
+#if IS_USED(MODULE_GNRC_NETTYPE_IPV4)
+        case GNRC_NETTYPE_IPV4:
+            return ETHERTYPE_IPV4;
+#endif
 #if IS_USED(MODULE_GNRC_NETTYPE_IPV6)
         case GNRC_NETTYPE_IPV6:
             return ETHERTYPE_IPV6;
@@ -238,9 +263,17 @@ static inline uint16_t gnrc_nettype_to_ethertype(gnrc_nettype_t type)
 static inline gnrc_nettype_t gnrc_nettype_from_protnum(uint8_t num)
 {
     switch (num) {
+#if IS_USED(MODULE_GNRC_NETTYPE_ICMPV4)
+        case PROTNUM_ICMP:
+            return GNRC_NETTYPE_ICMPV4;
+#endif
 #if IS_USED(MODULE_GNRC_NETTYPE_ICMPV6)
         case PROTNUM_ICMPV6:
             return GNRC_NETTYPE_ICMPV6;
+#endif
+#if IS_USED(MODULE_GNRC_NETTYPE_IPV4)
+        case PROTNUM_IPV4:
+            return GNRC_NETTYPE_IPV4;
 #endif
 #if IS_USED(MODULE_GNRC_NETTYPE_IPV6)
         case PROTNUM_IPV6:
@@ -283,9 +316,17 @@ static inline gnrc_nettype_t gnrc_nettype_from_protnum(uint8_t num)
 static inline uint8_t gnrc_nettype_to_protnum(gnrc_nettype_t type)
 {
     switch (type) {
+#if IS_USED(MODULE_GNRC_NETTYPE_IPV4)
+        case GNRC_NETTYPE_IPV4:
+            return PROTNUM_IPV4;
+#endif
 #if IS_USED(MODULE_GNRC_NETTYPE_IPV6)
         case GNRC_NETTYPE_IPV6:
             return PROTNUM_IPV6;
+#endif
+#if IS_USED(MODULE_GNRC_NETTYPE_ICMPV4)
+        case GNRC_NETTYPE_ICMPV4:
+            return PROTNUM_ICMP;
 #endif
 #if IS_USED(MODULE_GNRC_NETTYPE_ICMPV6)
         case GNRC_NETTYPE_ICMPV6:
