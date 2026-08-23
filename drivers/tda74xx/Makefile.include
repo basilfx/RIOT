@@ -1,0 +1,7 @@
+# include variants of TDA74xx audio processors as pseudo modules
+PSEUDOMODULES += tda7439
+PSEUDOMODULES += tda7440
+PSEUDOMODULES += tda7449
+
+USEMODULE_INCLUDES_tda74xx := $(LAST_MAKEFILEDIR)/include
+USEMODULE_INCLUDES += $(USEMODULE_INCLUDES_tda74xx)
