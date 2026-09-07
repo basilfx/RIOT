@@ -1,0 +1,7 @@
+USEMODULE += gnrc_ipv4_frag
+USEMODULE += gnrc_pktbuf_static
+
+# a single-entry reassembly buffer can't exercise concurrent-datagram
+# eviction; use two for these tests
+CFLAGS += -DCONFIG_GNRC_IPV4_FRAG_RBUF_SIZE=2
+CFLAGS += -DCONFIG_GNRC_IPV4_FRAG_LIMITS_POOL_SIZE=8
