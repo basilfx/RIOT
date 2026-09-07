@@ -26,6 +26,7 @@
 #include "net/gnrc/icmpv4.h"
 #endif
 #include "net/gnrc/icmpv4/error.h"
+#include "net/gnrc/ipv4/frag.h"
 
 #define ENABLE_DEBUG 0
 #include "debug.h"
@@ -229,6 +230,27 @@ static void _receive_ipv4(gnrc_netif_t *netif, gnrc_pktsnip_t *pkt)
         return;
     }
 
+    if ((ipv4_hdr_get_flags(hdr) & IPV4_HDR_FLAGS_MF) ||
+        (ipv4_hdr_get_fo(hdr) != 0)) {
+#if IS_USED(MODULE_GNRC_IPV4_FRAG)
+        pkt = gnrc_ipv4_frag_reass(pkt);
+        if (pkt == NULL) {
+            /* fragment queued, duplicate, or (reassembly) discarded;
+             * nothing more to do with it here */
+            return;
+        }
+        /* pkt is now a freshly reassembled datagram; the old ipv4/hdr
+         * snip we had is gone, re-derive them */
+        ipv4 = gnrc_pktsnip_search_type(pkt, GNRC_NETTYPE_IPV4);
+        hdr = ipv4->data;
+#else
+        DEBUG("ipv4: fragmented packet received, but module gnrc_ipv4_frag "
+              "is not used, dropping\n");
+        gnrc_pktbuf_release(pkt);
+        return;
+#endif
+    }
+
     protocol = hdr->protocol;
     _demux(netif, pkt, protocol);
 }
@@ -256,6 +278,28 @@ static void _receive(gnrc_pktsnip_t *pkt)
 }
 
 /* functions for sending */
+
+/**
+ * @brief   Generates the next value for ipv4_hdr_t::id
+ *
+ * A monotonic counter is sufficient here (and avoids a mandatory dependency
+ * on the `random` module for every gnrc_ipv4 user): RFC 1122 section
+ * 3.2.1.5 only requires this value to not repeat for as long as a datagram
+ * (or one of its fragments) could still be in flight, which a wrapping
+ * 16-bit counter satisfies as long as fewer than 65536 datagrams are
+ * outstanding at once -- true by a wide margin in practice.
+ *
+ * @note    Every outgoing datagram needs this, not just fragmented ones:
+ *          a downstream router might still need to fragment it even if
+ *          this host never fragments anything itself.
+ */
+static uint16_t _next_ipv4_id(void)
+{
+    static uint16_t id;
+
+    return id++;
+}
+
 static int _fill_ipv4_hdr(gnrc_netif_t *netif, gnrc_pktsnip_t *pkt)
 {
     ipv4_hdr_t *hdr = pkt->data;
@@ -271,6 +315,9 @@ static int _fill_ipv4_hdr(gnrc_netif_t *netif, gnrc_pktsnip_t *pkt)
     }
     if (hdr->ttl == 0) {
         hdr->ttl = (netif != NULL) ? netif->cur_hl : CONFIG_GNRC_NETIF_DEFAULT_HL;
+    }
+    if (hdr->id.u16 == 0) {
+        hdr->id = byteorder_htons(_next_ipv4_id());
     }
     if (hdr->src.u32.u32 == 0) {
         gnrc_netif_t *src_netif = netif;
@@ -320,13 +367,34 @@ static int _fill_ipv4_hdr(gnrc_netif_t *netif, gnrc_pktsnip_t *pkt)
     return 0;
 }
 
-static void _send_to_iface(gnrc_netif_t *netif, gnrc_pktsnip_t *pkt,
+void gnrc_ipv4_send_to_iface(gnrc_netif_t *netif, gnrc_pktsnip_t *pkt,
                            const uint8_t *l2addr, uint8_t l2addr_len,
                            uint8_t extra_flags)
 {
-    gnrc_pktsnip_t *netif_hdr = gnrc_netif_hdr_build(NULL, 0, l2addr, l2addr_len);
+    gnrc_pktsnip_t *netif_hdr;
     gnrc_netif_hdr_t *hdr;
 
+    if (gnrc_pkt_len(pkt) > netif->ipv4.mtu) {
+        ipv4_hdr_t *ipv4_hdr = pkt->data;
+
+        if (ipv4_hdr_get_flags(ipv4_hdr) & IPV4_HDR_FLAGS_DF) {
+            /* GNRC IPv4 never forwards, so a datagram exceeding the MTU
+             * with DF set can only be one we originated ourselves: there
+             * is no third party to notify via ICMP, only our own caller */
+            DEBUG("ipv4: packet too big and DF set, dropping\n");
+            gnrc_pktbuf_release_error(pkt, EMSGSIZE);
+            return;
+        }
+#if IS_USED(MODULE_GNRC_IPV4_FRAG)
+        gnrc_ipv4_frag_send(pkt, netif, l2addr, l2addr_len, extra_flags);
+#else
+        DEBUG("ipv4: packet too big, dropping\n");
+        gnrc_pktbuf_release_error(pkt, EMSGSIZE);
+#endif
+        return;
+    }
+
+    netif_hdr = gnrc_netif_hdr_build(NULL, 0, l2addr, l2addr_len);
     if (netif_hdr == NULL) {
         DEBUG("ipv4: unable to allocate interface header, dropping packet\n");
         gnrc_pktbuf_release(pkt);
@@ -353,7 +421,7 @@ static void _send_multicast(gnrc_pktsnip_t *pkt, gnrc_netif_t *netif,
             return;
         }
     }
-    _send_to_iface(netif, pkt, NULL, 0,
+    gnrc_ipv4_send_to_iface(netif, pkt, NULL, 0,
                    netif_hdr_flags | GNRC_NETIF_HDR_FLAGS_MULTICAST);
 }
 
@@ -368,7 +436,7 @@ static void _send_broadcast(gnrc_pktsnip_t *pkt, gnrc_netif_t *netif,
             return;
         }
     }
-    _send_to_iface(netif, pkt, NULL, 0,
+    gnrc_ipv4_send_to_iface(netif, pkt, NULL, 0,
                    netif_hdr_flags | GNRC_NETIF_HDR_FLAGS_BROADCAST);
 }
 
@@ -414,16 +482,10 @@ static void _send_unicast(gnrc_pktsnip_t *pkt, gnrc_netif_t *netif)
         gnrc_pktbuf_release_error(pkt, ENETUNREACH);
         return;
     }
-    if (gnrc_pkt_len(pkt) > netif->ipv4.mtu) {
-        /* fragmentation is not yet implemented */
-        DEBUG("ipv4: packet too big, dropping\n");
-        gnrc_pktbuf_release_error(pkt, EMSGSIZE);
-        return;
-    }
     if (netif->l2addr_len == 0) {
         /* point-to-point link (e.g. SLIP): no link layer address to
          * resolve */
-        _send_to_iface(netif, pkt, NULL, 0, 0);
+        gnrc_ipv4_send_to_iface(netif, pkt, NULL, 0, 0);
         return;
     }
     gnrc_ipv4_arp_request(netif, &next_hop, pkt);
@@ -496,6 +558,9 @@ static void *_event_loop(void *args)
     (void)args;
     msg_init_queue(_msg_q, GNRC_IPV4_MSG_QUEUE_SIZE);
     gnrc_ipv4_arp_init();
+#if IS_USED(MODULE_GNRC_IPV4_FRAG)
+    gnrc_ipv4_frag_init();
+#endif
 
     gnrc_netreg_register(GNRC_NETTYPE_IPV4, &me_ipv4_reg);
     gnrc_netreg_register(GNRC_NETTYPE_ARP, &me_arp_reg);
@@ -524,6 +589,11 @@ static void *_event_loop(void *args)
             case GNRC_IPV4_ARP_TIMEOUT:
                 gnrc_ipv4_arp_handle_timeout(msg.content.ptr);
                 break;
+#if IS_USED(MODULE_GNRC_IPV4_FRAG)
+            case GNRC_IPV4_FRAG_GC:
+                gnrc_ipv4_frag_gc();
+                break;
+#endif
             default:
                 break;
         }

@@ -183,7 +183,7 @@ static void _send_pending(_arp_entry_t *entry, gnrc_netif_t *netif)
 
     entry->pending = NULL;
     if (pkt != NULL) {
-        _send(netif, pkt, entry->l2addr, false);
+        gnrc_ipv4_send_to_iface(netif, pkt, entry->l2addr, entry->l2addr_len, 0);
     }
 }
 
@@ -201,7 +201,7 @@ void gnrc_ipv4_arp_request(gnrc_netif_t *netif, const ipv4_addr_t *dst,
     assert(!ipv4_addr_is_multicast(dst));
     entry = _find(netif->pid, dst);
     if ((entry != NULL) && (entry->state == _STATE_REACHABLE)) {
-        _send(netif, pkt, entry->l2addr, false);
+        gnrc_ipv4_send_to_iface(netif, pkt, entry->l2addr, entry->l2addr_len, 0);
         return;
     }
     if (entry == NULL) {

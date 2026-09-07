@@ -25,6 +25,9 @@ endif
 ifneq (,$(filter gnrc_ipv4_arp,$(USEMODULE)))
   DIRS += network_layer/ipv4/arp
 endif
+ifneq (,$(filter gnrc_ipv4_frag,$(USEMODULE)))
+  DIRS += network_layer/ipv4/frag
+endif
 ifneq (,$(filter gnrc_ipv4_hdr,$(USEMODULE)))
   DIRS += network_layer/ipv4/hdr
 endif

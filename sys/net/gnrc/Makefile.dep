@@ -413,6 +413,13 @@ ifneq (,$(filter gnrc_ipv4_arp,$(USEMODULE)))
   USEMODULE += gnrc_netif
 endif
 
+ifneq (,$(filter gnrc_ipv4_frag,$(USEMODULE)))
+  USEMODULE += gnrc_ipv4
+  USEMODULE += gnrc_icmpv4_error
+  USEMODULE += evtimer
+  USEMODULE += ztimer_msec
+endif
+
 ifneq (,$(filter gnrc_ipv4_hdr,$(USEMODULE)))
   USEMODULE += ipv4_hdr
   USEMODULE += gnrc_pktbuf

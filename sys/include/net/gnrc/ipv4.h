@@ -154,6 +154,31 @@ kernel_pid_t gnrc_ipv4_init(void);
  */
 ipv4_hdr_t *gnrc_ipv4_get_header(gnrc_pktsnip_t *pkt);
 
+/**
+ * @brief   Sends @p pkt to @p l2addr on @p netif, fragmenting it first if it
+ *          exceeds @p netif's MTU
+ *
+ * @internal Only meant to be called from within the gnrc_ipv4 module (the
+ *           gnrc_ipv4 thread itself and @ref net_gnrc_ipv4_arp), once the
+ *           destination's link-layer address is known -- this is the single
+ *           choke point both take to actually hand a packet to the link
+ *           layer, so that ARP-resolved sends get the same MTU/DF/
+ *           fragmentation handling as directly-resolved ones.
+ *
+ * @param[in] netif         The outgoing interface.
+ * @param[in,out] pkt       The packet to send, in send order (IPv4 header
+ *                          first). Always consumed.
+ * @param[in] l2addr        The destination link-layer address, or NULL for
+ *                          point-to-point links.
+ * @param[in] l2addr_len    Length of @p l2addr.
+ * @param[in] extra_flags   Flags to set on the outgoing
+ *                          @ref gnrc_netif_hdr_t (e.g. broadcast or
+ *                          multicast).
+ */
+void gnrc_ipv4_send_to_iface(gnrc_netif_t *netif, gnrc_pktsnip_t *pkt,
+                             const uint8_t *l2addr, uint8_t l2addr_len,
+                             uint8_t extra_flags);
+
 #ifdef __cplusplus
 }
 #endif

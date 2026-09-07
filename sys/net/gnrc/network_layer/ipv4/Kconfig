@@ -44,4 +44,21 @@ config GNRC_IPV4_ARP_CACHE_TIMEOUT_MS
 
 endmenu # GNRC IPv4 ARP
 
+menu "GNRC IPv4 fragmentation and reassembly"
+    depends on USEMODULE_GNRC_IPV4_FRAG
+
+config GNRC_IPV4_FRAG_RBUF_SIZE
+    int "Maximum number of datagrams reassembled at the same time"
+    default 1
+
+config GNRC_IPV4_FRAG_LIMITS_POOL_SIZE
+    int "Maximum number of not-yet-coalesced fragment intervals (shared across all in-progress reassemblies)"
+    default 4
+
+config GNRC_IPV4_FRAG_RBUF_TIMEOUT_MS
+    int "Time a partial datagram is kept before it is discarded (in ms)"
+    default 60000
+
+endmenu # GNRC IPv4 fragmentation and reassembly
+
 endmenu # IPv4
