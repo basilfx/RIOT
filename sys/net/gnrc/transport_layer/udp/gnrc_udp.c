@@ -31,6 +31,10 @@
 #include "net/gnrc/icmpv6/error.h"
 #include "net/inet_csum.h"
 
+#if IS_USED(MODULE_GNRC_IPV4)
+#include "net/ipv4/hdr.h"
+#endif
+
 #define ENABLE_DEBUG 0
 #include "debug.h"
 
@@ -79,6 +83,11 @@ static uint16_t _calc_csum(gnrc_pktsnip_t *hdr, gnrc_pktsnip_t *pseudo_hdr,
             csum = ipv6_hdr_inet_csum(csum, pseudo_hdr->data, PROTNUM_UDP, len);
             break;
 #endif
+#if IS_USED(MODULE_GNRC_IPV4)
+        case GNRC_NETTYPE_IPV4:
+            csum = ipv4_hdr_inet_csum(csum, pseudo_hdr->data, PROTNUM_UDP, len);
+            break;
+#endif
         default:
             (void)len;
             return 0;
@@ -89,6 +98,7 @@ static uint16_t _calc_csum(gnrc_pktsnip_t *hdr, gnrc_pktsnip_t *pseudo_hdr,
          * bullet 4
          * "if that computation yields a result of zero, it must be changed
          * to hex FFFF for placement in the UDP header."
+         * RFC 768 states the same for IPv4.
          */
         return 0xFFFF;
     } else {
@@ -98,7 +108,7 @@ static uint16_t _calc_csum(gnrc_pktsnip_t *hdr, gnrc_pktsnip_t *pseudo_hdr,
 
 static void _receive(gnrc_pktsnip_t *pkt)
 {
-    gnrc_pktsnip_t *udp, *ipv6;
+    gnrc_pktsnip_t *udp, *ip;
     udp_hdr_t *hdr;
     uint32_t port;
 
@@ -111,9 +121,17 @@ static void _receive(gnrc_pktsnip_t *pkt)
     }
     pkt = udp;
 
-    ipv6 = gnrc_pktsnip_search_type(pkt, GNRC_NETTYPE_IPV6);
+    ip = NULL;
+#ifdef MODULE_GNRC_IPV6
+    ip = gnrc_pktsnip_search_type(pkt, GNRC_NETTYPE_IPV6);
+#endif
+#if IS_USED(MODULE_GNRC_IPV4)
+    if (ip == NULL) {
+        ip = gnrc_pktsnip_search_type(pkt, GNRC_NETTYPE_IPV4);
+    }
+#endif
 
-    assert(ipv6 != NULL);
+    assert(ip != NULL);
 
     if ((pkt->next != NULL) && (pkt->next->type == GNRC_NETTYPE_UDP) &&
         (pkt->next->size == sizeof(udp_hdr_t))) {
@@ -135,15 +153,22 @@ static void _receive(gnrc_pktsnip_t *pkt)
 
     /* validate checksum */
     if (byteorder_ntohs(hdr->checksum) == 0) {
-        /* RFC 8200 Section 8.1
-         * "IPv6 receivers must discard UDP packets containing a zero checksum,
-         * and should log the error."
-         */
-        DEBUG("udp: received packet with zero checksum, dropping it\n");
-        gnrc_pktbuf_release(pkt);
-        return;
+#if IS_USED(MODULE_GNRC_IPV4)
+        if (ip->type != GNRC_NETTYPE_IPV4)
+#endif
+        {
+            /* RFC 8200 Section 8.1
+             * "IPv6 receivers must discard UDP packets containing a zero
+             * checksum, and should log the error."
+             * RFC 768 leaves the checksum optional for IPv4: a zero value
+             * means the sender did not compute one, so skip validation.
+             */
+            DEBUG("udp: received packet with zero checksum, dropping it\n");
+            gnrc_pktbuf_release(pkt);
+            return;
+        }
     }
-    if (_calc_csum(udp, ipv6, pkt) != 0xFFFF) {
+    else if (_calc_csum(udp, ip, pkt) != 0xFFFF) {
         DEBUG("udp: received packet with invalid checksum, dropping it\n");
         gnrc_pktbuf_release(pkt);
         return;
@@ -155,8 +180,12 @@ static void _receive(gnrc_pktsnip_t *pkt)
     /* send payload to receivers */
     if (!gnrc_netapi_dispatch_receive(GNRC_NETTYPE_UDP, port, pkt)) {
         DEBUG("udp: unable to forward packet as no one is interested in it\n");
-        /* TODO determine if IPv6 packet, when IPv4 is implemented */
-        gnrc_icmpv6_error_dst_unr_send(ICMPV6_ERROR_DST_UNR_PORT, pkt);
+        /* ICMPv4 destination unreachable is not implemented yet */
+#ifdef MODULE_GNRC_IPV6
+        if (ip->type == GNRC_NETTYPE_IPV6) {
+            gnrc_icmpv6_error_dst_unr_send(ICMPV6_ERROR_DST_UNR_PORT, pkt);
+        }
+#endif
         gnrc_pktbuf_release(pkt);
     }
 }
