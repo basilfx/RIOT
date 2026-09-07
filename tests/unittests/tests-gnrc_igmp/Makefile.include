@@ -1,0 +1,2 @@
+USEMODULE += gnrc_igmp
+USEMODULE += gnrc_pktbuf_static

@@ -46,6 +46,9 @@
 #include "net/gnrc/netif.h"
 #include "net/gnrc/netif/internal.h"
 #include "net/gnrc/tx_sync.h"
+#if IS_USED(MODULE_GNRC_IGMP)
+#include "net/gnrc/igmp.h"
+#endif /* IS_USED(MODULE_GNRC_IGMP) */
 
 #define ENABLE_DEBUG 0
 #include "debug.h"
@@ -1845,6 +1848,9 @@ int gnrc_netif_ipv4_group_join_internal(gnrc_netif_t *netif,
     }
     memcpy(&netif->ipv4.groups[idx], addr, sizeof(netif->ipv4.groups[idx]));
     gnrc_netif_release(netif);
+#if IS_USED(MODULE_GNRC_IGMP)
+    gnrc_igmp_group_joined(netif, addr);
+#endif
     return idx;
 }
 
@@ -1900,6 +1906,9 @@ void gnrc_netif_ipv4_group_leave_internal(gnrc_netif_t *netif,
     }
     memset(&netif->ipv4.groups[idx], 0, sizeof(netif->ipv4.groups[idx]));
     gnrc_netif_release(netif);
+#if IS_USED(MODULE_GNRC_IGMP)
+    gnrc_igmp_group_left(netif, addr);
+#endif
 }
 
 int gnrc_netif_ipv4_group_idx(gnrc_netif_t *netif,
@@ -1949,6 +1958,15 @@ static void _init_from_device(gnrc_netif_t *netif)
     gnrc_netif_ipv6_init_mtu(netif);
 #if IS_USED(MODULE_GNRC_NETIF_IPV4)
     gnrc_netif_ipv4_init_mtu(netif);
+    /* RFC 1112, section 6.1: every host must be a permanent member of the
+     * all-hosts group on every multicast-capable interface, so that a
+     * router's General Query (addressed to 224.0.0.1) is not dropped by
+     * the receive-path group-membership admission check before it ever
+     * reaches gnrc_igmp */
+    if (gnrc_netif_ipv4_group_join_internal(netif, &ipv4_addr_all_hosts_group) < 0) {
+        DEBUG("gnrc_netif: could not join all-hosts group on interface %u\n",
+              netif->pid);
+    }
 #endif
     _update_l2addr_from_dev(netif);
 }

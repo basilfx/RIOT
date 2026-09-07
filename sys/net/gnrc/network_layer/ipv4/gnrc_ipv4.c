@@ -25,6 +25,9 @@
 #ifdef MODULE_GNRC_ICMPV4
 #include "net/gnrc/icmpv4.h"
 #endif
+#ifdef MODULE_GNRC_IGMP
+#include "net/gnrc/igmp.h"
+#endif
 #include "net/gnrc/icmpv4/error.h"
 #include "net/gnrc/ipv4/frag.h"
 
@@ -63,12 +66,8 @@ ipv4_hdr_t *gnrc_ipv4_get_header(gnrc_pktsnip_t *pkt)
 
 static inline bool _gnrc_ipv4_is_interested(uint8_t protocol)
 {
-#ifdef MODULE_GNRC_ICMPV4
-    return (protocol == PROTNUM_ICMP);
-#else
-    (void)protocol;
-    return false;
-#endif
+    return (IS_USED(MODULE_GNRC_ICMPV4) && (protocol == PROTNUM_ICMP)) ||
+          (IS_USED(MODULE_GNRC_IGMP) && (protocol == PROTNUM_IGMP));
 }
 
 /**
@@ -112,6 +111,12 @@ static void _demux(gnrc_netif_t *netif, gnrc_pktsnip_t *pkt, uint8_t protocol)
         case PROTNUM_ICMP:
             DEBUG("ipv4: handle ICMPv4 packet\n");
             gnrc_icmpv4_demux(netif, pkt);
+            break;
+#endif
+#ifdef MODULE_GNRC_IGMP
+        case PROTNUM_IGMP:
+            DEBUG("ipv4: handle IGMP packet\n");
+            gnrc_igmp_demux(netif, pkt);
             break;
 #endif
         default:
@@ -561,6 +566,9 @@ static void *_event_loop(void *args)
 #if IS_USED(MODULE_GNRC_IPV4_FRAG)
     gnrc_ipv4_frag_init();
 #endif
+#if IS_USED(MODULE_GNRC_IGMP)
+    gnrc_igmp_init();
+#endif
 
     gnrc_netreg_register(GNRC_NETTYPE_IPV4, &me_ipv4_reg);
     gnrc_netreg_register(GNRC_NETTYPE_ARP, &me_arp_reg);
@@ -592,6 +600,11 @@ static void *_event_loop(void *args)
 #if IS_USED(MODULE_GNRC_IPV4_FRAG)
             case GNRC_IPV4_FRAG_GC:
                 gnrc_ipv4_frag_gc();
+                break;
+#endif
+#if IS_USED(MODULE_GNRC_IGMP)
+            case GNRC_IPV4_IGMP_TIMEOUT:
+                gnrc_igmp_handle_timeout(msg.content.ptr);
                 break;
 #endif
             default:

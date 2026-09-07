@@ -61,4 +61,17 @@ config GNRC_IPV4_FRAG_RBUF_TIMEOUT_MS
 
 endmenu # GNRC IPv4 fragmentation and reassembly
 
+menu "GNRC IGMP"
+    depends on USEMODULE_GNRC_IGMP
+
+config GNRC_IGMP_GROUP_CACHE_SIZE
+    int "Maximum number of joined groups tracked across all interfaces"
+    default 4
+
+config GNRC_IGMP_UNSOLICITED_REPORT_INTERVAL_MS
+    int "Delay between an unsolicited report and its repetition (in ms)"
+    default 10000
+
+endmenu # GNRC IGMP
+
 endmenu # IPv4
