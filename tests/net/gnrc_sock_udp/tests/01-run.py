@@ -20,6 +20,7 @@ def testfunc(child):
     child.expect_exact(u"Calling test_sock_udp_create__only_local_reuse_ep()")
     child.expect_exact(u"Calling test_sock_udp_create__only_remote()")
     child.expect_exact(u"Calling test_sock_udp_create__full()")
+    child.expect_exact(u"Calling test_sock_udp_create__only_local_ipv4()")
     child.expect_exact(u"Calling test_sock_udp_recv__EADDRNOTAVAIL()")
     child.expect_exact(u"Calling test_sock_udp_recv__EAGAIN()")
     child.expect_exact(u"Calling test_sock_udp_recv__ENOBUFS()")
@@ -33,6 +34,8 @@ def testfunc(child):
     child.expect_exact(u"Calling test_sock_udp_recv__unsocketed_with_remote()")
     child.expect_exact(u"Calling test_sock_udp_recv__with_timeout()")
     child.expect_exact(u"Calling test_sock_udp_recv__non_blocking()")
+    child.expect_exact(u"Calling test_sock_udp_recv__socketed_ipv4()")
+    child.expect_exact(u"Calling test_sock_udp_recv__zero_checksum_ipv4()")
     child.expect_exact(u"Calling test_sock_udp_send__EAFNOSUPPORT()")
     child.expect_exact(u"Calling test_sock_udp_send__EINVAL_addr()")
     child.expect_exact(u"Calling test_sock_udp_send__EINVAL_netif()")
@@ -49,6 +52,7 @@ def testfunc(child):
     child.expect_exact(u"Calling test_sock_udp_send__unsocketed()")
     child.expect_exact(u"Calling test_sock_udp_send__no_sock_no_netif()")
     child.expect_exact(u"Calling test_sock_udp_send__no_sock()")
+    child.expect_exact(u"Calling test_sock_udp_send__socketed_ipv4()")
     child.expect_exact(u"ALL TESTS SUCCESSFUL")
 
 

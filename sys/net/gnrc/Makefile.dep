@@ -398,6 +398,7 @@ ifneq (,$(filter gnrc_ipv4,$(USEMODULE)))
   DEFAULT_MODULE += auto_init_gnrc_ipv4
   USEMODULE += evtimer
   USEMODULE += inet_csum
+  USEMODULE += ipv4
   USEMODULE += ipv4_addr
   USEMODULE += gnrc_ipv4_arp
   USEMODULE += gnrc_ipv4_hdr

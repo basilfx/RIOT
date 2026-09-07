@@ -24,6 +24,10 @@
 #include "test_utils/expect.h"
 #include "xtimer.h"
 
+#if IS_USED(MODULE_GNRC_IPV4)
+#include "net/ipv4/addr.h"
+#endif
+
 #include "constants.h"
 #include "stack.h"
 
@@ -408,13 +412,78 @@ static void test_sock_ip_recv_buf__success(void)
 
 static void test_sock_ip_send__EAFNOSUPPORT_INET(void)
 {
+#if IS_USED(MODULE_GNRC_IPV4)
+    /* AF_INET is supported when gnrc_ipv4 is used; nothing left to prove
+     * unsupported here */
+    puts(" * skipped: AF_INET is supported (module gnrc_ipv4 is used)");
+#else
     static const sock_ip_ep_t remote = { .addr = { .ipv6 = _TEST_ADDR_REMOTE },
                                          .family = AF_INET };
 
     expect(-EAFNOSUPPORT == sock_ip_send(NULL, "ABCD", sizeof("ABCD"),
                                          _TEST_PROTO, &remote));
     expect(_check_net());
+#endif
 }
+
+#if IS_USED(MODULE_GNRC_IPV4)
+static void test_sock_ip_create__only_local_ipv4(void)
+{
+    static const sock_ip_ep_t local = { .family = AF_INET };
+    sock_ip_ep_t ep;
+
+    expect(0 == sock_ip_create(&_sock, &local, NULL, _TEST_PROTO,
+                               SOCK_FLAGS_REUSE_EP));
+    expect(0 == sock_ip_get_local(&_sock, &ep));
+    expect(AF_INET == ep.family);
+    expect(memcmp(&ipv4_addr_unspecified, &ep.addr.ipv4,
+                  sizeof(ipv4_addr_t)) == 0);
+    expect(SOCK_ADDR_ANY_NETIF == ep.netif);
+    expect(-ENOTCONN == sock_ip_get_remote(&_sock, &ep));
+}
+
+static void test_sock_ip_recv__socketed_ipv4(void)
+{
+    static const ipv4_addr_t src_addr = { .u8 = _TEST_ADDR4_REMOTE };
+    static const ipv4_addr_t dst_addr = { .u8 = _TEST_ADDR4_LOCAL };
+    static const sock_ip_ep_t local = { .family = AF_INET };
+    static const sock_ip_ep_t remote = { .addr = { .ipv4 = _TEST_ADDR4_REMOTE },
+                                         .family = AF_INET };
+    sock_ip_ep_t result;
+
+    expect(0 == sock_ip_create(&_sock, &local, &remote, _TEST_PROTO,
+                               SOCK_FLAGS_REUSE_EP));
+    expect(_inject_packet4(&src_addr, &dst_addr, _TEST_PROTO, "ABCD",
+                           sizeof("ABCD"), _TEST_NETIF));
+    expect(sizeof("ABCD") == sock_ip_recv(&_sock, _test_buffer,
+                                          sizeof(_test_buffer), SOCK_NO_TIMEOUT,
+                                          &result));
+    expect(AF_INET == result.family);
+    expect(memcmp(&result.addr, &src_addr, sizeof(ipv4_addr_t)) == 0);
+    expect(_TEST_NETIF == result.netif);
+    expect(_check_net());
+}
+
+static void test_sock_ip_send__socketed_ipv4(void)
+{
+    static const ipv4_addr_t src_addr = { .u8 = _TEST_ADDR4_LOCAL };
+    static const ipv4_addr_t dst_addr = { .u8 = _TEST_ADDR4_REMOTE };
+    static const sock_ip_ep_t local = { .addr = { .ipv4 = _TEST_ADDR4_LOCAL },
+                                        .family = AF_INET,
+                                        .netif = _TEST_NETIF };
+    static const sock_ip_ep_t remote = { .addr = { .ipv4 = _TEST_ADDR4_REMOTE },
+                                         .family = AF_INET };
+
+    expect(0 == sock_ip_create(&_sock, &local, &remote, _TEST_PROTO,
+                               SOCK_FLAGS_REUSE_EP));
+    expect(sizeof("ABCD") == sock_ip_send(&_sock, "ABCD", sizeof("ABCD"),
+                                          _TEST_PROTO, NULL));
+    expect(_check_packet4(&src_addr, &dst_addr, _TEST_PROTO, "ABCD",
+                          sizeof("ABCD"), _TEST_NETIF));
+    xtimer_usleep(1000);    /* let GNRC stack finish */
+    expect(_check_net());
+}
+#endif /* IS_USED(MODULE_GNRC_IPV4) */
 
 static void test_sock_ip_send__EAFNOSUPPORT_UNSPEC(void)
 {
@@ -675,6 +744,9 @@ int main(void)
     CALL(test_sock_ip_create__only_local_reuse_ep());
     CALL(test_sock_ip_create__only_remote());
     CALL(test_sock_ip_create__full());
+#if IS_USED(MODULE_GNRC_IPV4)
+    CALL(test_sock_ip_create__only_local_ipv4());
+#endif
     /* sock_ip_close() is tested in tear_down() */
     /* sock_ip_get_local() is tested in sock_ip_create() tests */
     /* sock_ip_get_remote() is tested in sock_ip_create() tests */
@@ -691,6 +763,9 @@ int main(void)
     CALL(test_sock_ip_recv__non_blocking());
     CALL(test_sock_ip_recv__aux());
     CALL(test_sock_ip_recv_buf__success());
+#if IS_USED(MODULE_GNRC_IPV4)
+    CALL(test_sock_ip_recv__socketed_ipv4());
+#endif
     _prepare_send_checks();
     CALL(test_sock_ip_send__EAFNOSUPPORT_INET());
     CALL(test_sock_ip_send__EAFNOSUPPORT_UNSPEC());
@@ -709,6 +784,9 @@ int main(void)
     CALL(test_sock_ip_send__unsocketed());
     CALL(test_sock_ip_send__no_sock_no_netif());
     CALL(test_sock_ip_send__no_sock());
+#if IS_USED(MODULE_GNRC_IPV4)
+    CALL(test_sock_ip_send__socketed_ipv4());
+#endif
 
     puts("ALL TESTS SUCCESSFUL");
 

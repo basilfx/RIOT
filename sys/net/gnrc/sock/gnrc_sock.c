@@ -31,6 +31,11 @@
 #include "sock_types.h"
 #include "gnrc_sock_internal.h"
 
+#if IS_USED(MODULE_GNRC_IPV4)
+#include "net/gnrc/ipv4.h"
+#include "net/ipv4/addr.h"
+#endif
+
 #if IS_USED(MODULE_ZTIMER_USEC) || IS_USED(MODULE_ZTIMER_MSEC)
 #  include "ztimer.h"
 #endif
@@ -149,18 +154,44 @@ ssize_t gnrc_sock_recv(gnrc_sock_reg_t *reg, gnrc_pktsnip_t **pkt_out,
         default:
             return -EINVAL;
     }
-    /* TODO: discern NETTYPE from remote->family (set in caller), when IPv4
-     * was implemented */
-    ipv6_hdr_t *ipv6_hdr = gnrc_ipv6_get_header(pkt);
-    assert(ipv6_hdr != NULL);
-    memcpy(&remote->addr, &ipv6_hdr->src, sizeof(ipv6_addr_t));
-    remote->family = AF_INET6;
+#if IS_USED(MODULE_GNRC_IPV4)
+    ipv4_hdr_t *ipv4_hdr = gnrc_ipv4_get_header(pkt);
+
+    if (ipv4_hdr != NULL) {
+        memcpy(&remote->addr, &ipv4_hdr->src, sizeof(ipv4_addr_t));
+        remote->family = AF_INET;
 #if IS_USED(MODULE_SOCK_AUX_LOCAL)
-    if (aux->local != NULL) {
-        memcpy(&aux->local->addr, &ipv6_hdr->dst, sizeof(ipv6_addr_t));
-        aux->local->family = AF_INET6;
-    }
+        if (aux->local != NULL) {
+            memcpy(&aux->local->addr, &ipv4_hdr->dst, sizeof(ipv4_addr_t));
+            aux->local->family = AF_INET;
+        }
 #endif /* MODULE_SOCK_AUX_LOCAL */
+    }
+    else
+#endif /* IS_USED(MODULE_GNRC_IPV4) */
+#if IS_USED(MODULE_GNRC_IPV6)
+    {
+        ipv6_hdr_t *ipv6_hdr = gnrc_ipv6_get_header(pkt);
+        assert(ipv6_hdr != NULL);
+        memcpy(&remote->addr, &ipv6_hdr->src, sizeof(ipv6_addr_t));
+        remote->family = AF_INET6;
+#if IS_USED(MODULE_SOCK_AUX_LOCAL)
+        if (aux->local != NULL) {
+            memcpy(&aux->local->addr, &ipv6_hdr->dst, sizeof(ipv6_addr_t));
+            aux->local->family = AF_INET6;
+        }
+#endif /* MODULE_SOCK_AUX_LOCAL */
+    }
+#else
+    {
+        /* neither an IPv4 nor an IPv6 header: unreachable, since gnrc_sock
+         * is only ever handed a packet received over one of the address
+         * families it was built with */
+        assert(0);
+        gnrc_pktbuf_release(pkt);
+        return -EPROTO;
+    }
+#endif /* IS_USED(MODULE_GNRC_IPV6) */
     netif = gnrc_pktsnip_search_type(pkt, GNRC_NETTYPE_NETIF);
     if (netif == NULL) {
         remote->netif = SOCK_ADDR_ANY_NETIF;
@@ -241,6 +272,26 @@ ssize_t gnrc_sock_send(gnrc_pktsnip_t *payload, sock_ip_ep_t *local,
             }
             hdr = pkt->data;
             hdr->nh = nh;
+            break;
+        }
+#endif
+#if IS_USED(MODULE_GNRC_IPV4)
+        case AF_INET: {
+            ipv4_hdr_t *hdr;
+            pkt = gnrc_ipv4_hdr_build(payload, (ipv4_addr_t *)&local->addr.ipv4,
+                                      (ipv4_addr_t *)&remote->addr.ipv4);
+            if (pkt == NULL) {
+                return -ENOMEM;
+            }
+            if (payload->type == GNRC_NETTYPE_UNDEF) {
+                payload->type = GNRC_NETTYPE_IPV4;
+                type = GNRC_NETTYPE_IPV4;
+            }
+            else {
+                type = payload->type;
+            }
+            hdr = pkt->data;
+            hdr->protocol = nh;
             break;
         }
 #endif

@@ -20,6 +20,11 @@
 #include "net/sock.h"
 #include "sched.h"
 
+#if IS_USED(MODULE_GNRC_IPV4)
+#include "net/gnrc/ipv4.h"
+#include "net/ipv4/hdr.h"
+#endif
+
 #include "stack.h"
 
 #define _MSG_QUEUE_SIZE     (4)
@@ -183,3 +188,137 @@ bool _check_packet(const ipv6_addr_t *src, const ipv6_addr_t *dst,
                 (data_len ==payload_len ) &&
                 (memcmp(data, _rx_buf, data_len) == 0));
 }
+
+#if IS_USED(MODULE_GNRC_IPV4)
+static gnrc_pktsnip_t *_build_ipv4_udp_packet(const ipv4_addr_t *src,
+                                              const ipv4_addr_t *dst,
+                                              uint16_t src_port, uint16_t dst_port,
+                                              void *data, size_t data_len,
+                                              uint16_t netif,
+                                              const inject_aux_t *aux)
+{
+    gnrc_pktsnip_t *netif_hdr_snip, *ipv4, *udp;
+    udp_hdr_t *udp_hdr;
+    ipv4_hdr_t *ipv4_hdr;
+    uint16_t csum = 0;
+
+    if ((netif > INT16_MAX) || ((sizeof(udp_hdr_t) + data_len) > UINT16_MAX)) {
+        return NULL;
+    }
+
+    udp = gnrc_pktbuf_add(NULL, NULL, sizeof(udp_hdr_t) + data_len,
+                          GNRC_NETTYPE_UNDEF);
+    if (udp == NULL) {
+        return NULL;
+    }
+    udp_hdr = udp->data;
+    udp_hdr->src_port = byteorder_htons(src_port);
+    udp_hdr->dst_port = byteorder_htons(dst_port);
+    udp_hdr->length = byteorder_htons((uint16_t)udp->size);
+    udp_hdr->checksum.u16 = 0;
+    memcpy(udp_hdr + 1, data, data_len);
+    csum = inet_csum(csum, (uint8_t *)udp->data, udp->size);
+    ipv4 = gnrc_ipv4_hdr_build(NULL, src, dst);
+    if (ipv4 == NULL) {
+        return NULL;
+    }
+    ipv4_hdr = ipv4->data;
+    ipv4_hdr->ttl = 64;
+    ipv4_hdr->protocol = PROTNUM_UDP;
+    csum = ipv4_hdr_inet_csum(csum, ipv4_hdr, PROTNUM_UDP, (uint16_t)udp->size);
+    if (csum == 0xffff) {
+        udp_hdr->checksum = byteorder_htons(csum);
+    }
+    else {
+        udp_hdr->checksum = byteorder_htons(~csum);
+    }
+    udp = gnrc_pkt_append(udp, ipv4);
+    netif_hdr_snip = gnrc_netif_hdr_build(NULL, 0, NULL, 0);
+    if (netif_hdr_snip == NULL) {
+        return NULL;
+    }
+    gnrc_netif_hdr_t *netif_hdr = netif_hdr_snip->data;
+    netif_hdr->if_pid = (kernel_pid_t)netif;
+    if (aux) {
+        gnrc_netif_hdr_set_timestamp(netif_hdr, aux->timestamp);
+        netif_hdr->rssi = aux->rssi;
+    }
+    return gnrc_pkt_append(udp, netif_hdr_snip);
+}
+
+bool _inject_packet4_aux(const ipv4_addr_t *src, const ipv4_addr_t *dst,
+                         uint16_t src_port, uint16_t dst_port,
+                         void *data, size_t data_len, uint16_t netif,
+                         const inject_aux_t *aux)
+{
+    gnrc_pktsnip_t *pkt = _build_ipv4_udp_packet(src, dst, src_port, dst_port,
+                                                 data, data_len, netif, aux);
+
+    if (pkt == NULL) {
+        return false;
+    }
+    return (gnrc_netapi_dispatch_receive(GNRC_NETTYPE_UDP,
+                                         GNRC_NETREG_DEMUX_CTX_ALL, pkt) > 0);
+}
+
+bool _check_packet4(const ipv4_addr_t *src, const ipv4_addr_t *dst,
+                    uint16_t src_port, uint16_t dst_port,
+                    void *data, size_t data_len, uint16_t iface,
+                    bool random_src_port)
+{
+    gnrc_pktsnip_t *pkt, *ipv4, *udp, *payload;
+    ipv4_hdr_t *ipv4_hdr;
+    udp_hdr_t *udp_hdr;
+    size_t payload_len;
+    char *payload_buf;
+    msg_t msg;
+
+    msg_receive(&msg);
+    if (msg.type != GNRC_NETAPI_MSG_TYPE_SND) {
+        return false;
+    }
+    pkt = msg.content.ptr;
+    if (iface != SOCK_ADDR_ANY_NETIF) {
+        gnrc_netif_hdr_t *netif_hdr;
+
+        if (pkt->type != GNRC_NETTYPE_NETIF) {
+            return _res(pkt, false);
+        }
+        netif_hdr = pkt->data;
+        if (netif_hdr->if_pid != (int)iface) {
+            return _res(pkt, false);
+        }
+        ipv4 = pkt->next;
+    }
+    else {
+        ipv4 = pkt;
+    }
+    if (ipv4->type != GNRC_NETTYPE_IPV4) {
+        return _res(pkt, false);
+    }
+    ipv4_hdr = ipv4->data;
+    udp = gnrc_pktsnip_search_type(ipv4, GNRC_NETTYPE_UDP);
+    if (udp == NULL) {
+        return _res(pkt, false);
+    }
+    udp_hdr = udp->data;
+
+    payload = udp->next;
+    payload_buf = _rx_buf;
+    while (payload) {
+        memcpy(payload_buf, payload->data, payload->size);
+        payload_buf += payload->size;
+        payload = payload->next;
+    }
+    payload_len = payload_buf - _rx_buf;
+
+    return _res(pkt, (memcmp(src, &ipv4_hdr->src, sizeof(ipv4_addr_t)) == 0) &&
+                (memcmp(dst, &ipv4_hdr->dst, sizeof(ipv4_addr_t)) == 0) &&
+                (ipv4_hdr->protocol == PROTNUM_UDP) &&
+                (random_src_port || (src_port == byteorder_ntohs(udp_hdr->src_port))) &&
+                (dst_port == byteorder_ntohs(udp_hdr->dst_port)) &&
+                (udp->next != NULL) &&
+                (data_len == payload_len) &&
+                (memcmp(data, _rx_buf, data_len) == 0));
+}
+#endif /* IS_USED(MODULE_GNRC_IPV4) */

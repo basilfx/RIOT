@@ -20,7 +20,12 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "kernel_defines.h"
 #include "net/ipv6/addr.h"
+
+#if IS_USED(MODULE_GNRC_IPV4)
+#include "net/ipv4/addr.h"
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -107,6 +112,38 @@ bool _check_net(void);
  */
 bool _check_packet(const ipv6_addr_t *src, const ipv6_addr_t *dst,
                    uint8_t proto, void *data, size_t data_len, uint16_t netif);
+
+#if IS_USED(MODULE_GNRC_IPV4)
+/**
+ * @brief   Injects a received IPv4 packet into the stack
+ *
+ * @see _inject_packet_aux
+ */
+bool _inject_packet4_aux(const ipv4_addr_t *src, const ipv4_addr_t *dst,
+                         uint8_t proto, void *data, size_t data_len,
+                         uint16_t netif, const inject_aux_t *aux);
+
+/**
+ * @brief   Injects a received IPv4 packet into the stack
+ *
+ * @see _inject_packet
+ */
+static inline bool _inject_packet4(const ipv4_addr_t *src,
+                                   const ipv4_addr_t *dst,
+                                   uint8_t proto, void *data, size_t data_len,
+                                   uint16_t netif)
+{
+    return _inject_packet4_aux(src, dst, proto, data, data_len, netif, NULL);
+}
+
+/**
+ * @brief   Checks if an IPv4 packet was sent by the networking component
+ *
+ * @see _check_packet
+ */
+bool _check_packet4(const ipv4_addr_t *src, const ipv4_addr_t *dst,
+                    uint8_t proto, void *data, size_t data_len, uint16_t netif);
+#endif /* IS_USED(MODULE_GNRC_IPV4) */
 
 #ifdef __cplusplus
 }

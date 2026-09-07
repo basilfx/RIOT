@@ -29,6 +29,11 @@
 #include "net/udp.h"
 #include "random.h"
 
+#if IS_USED(MODULE_GNRC_IPV4)
+#include "net/ipv4/addr.h"
+#include "net/ipv4/hdr.h"
+#endif
+
 #ifdef SOCK_HAS_ASYNC_CTX
 #  include "net/sock/async/event.h"
 #endif
@@ -145,6 +150,15 @@ int sock_udp_create(sock_udp_t *sock, const sock_udp_ep_t *local,
                     (sock_ip_ep_t *)remote, sizeof(sock_udp_ep_t));
 
         /* only accept responses from the set remote */
+#if IS_USED(MODULE_GNRC_IPV4)
+        if (remote->family == AF_INET) {
+            if (!ipv4_addr_is_multicast((ipv4_addr_t *)&remote->addr) &&
+                !ipv4_addr_is_unspecified((ipv4_addr_t *)&remote->addr)) {
+                flags |= SOCK_FLAGS_CONNECT_REMOTE;
+            }
+        }
+        else
+#endif
         if (!ipv6_addr_is_multicast((ipv6_addr_t *)&remote->addr) &&
             !ipv6_addr_is_unspecified((ipv6_addr_t *)&remote->addr)) {
             flags |= SOCK_FLAGS_CONNECT_REMOTE;
@@ -235,12 +249,15 @@ static bool _accept_remote(const sock_udp_t *sock, const udp_hdr_t *hdr,
         return false;
     }
 
-    if (memcmp(&sock->remote.addr, &remote->addr, sizeof(ipv6_addr_t)) != 0) {
-        char addr_str[IPV6_ADDR_MAX_STR_LEN];
-        DEBUG("gnrc_sock_udp: socket bound to address %s",
-              ipv6_addr_to_str(addr_str, (ipv6_addr_t *)&sock->remote.addr, sizeof(addr_str)));
-        DEBUG(", source (%s) does not match\n",
-              ipv6_addr_to_str(addr_str, (ipv6_addr_t *)&remote->addr, sizeof(addr_str)));
+    size_t addr_size = sizeof(ipv6_addr_t);
+
+#if IS_USED(MODULE_GNRC_IPV4)
+    if (sock->remote.family == AF_INET) {
+        addr_size = sizeof(ipv4_addr_t);
+    }
+#endif
+    if (memcmp(&sock->remote.addr, &remote->addr, addr_size) != 0) {
+        DEBUG("gnrc_sock_udp: source address does not match remote\n");
         if (CONFIG_GNRC_SOCK_UDP_CHECK_REMOTE_ADDR) {
             return false;
         }
@@ -326,6 +343,13 @@ ssize_t sock_udp_recv_buf_aux(sock_udp_t *sock, void **data, void **buf_ctx,
             aux->ttl = ip_hdr->hl;
             aux->flags &= ~SOCK_AUX_GET_TTL;
         }
+#if IS_USED(MODULE_GNRC_IPV4)
+        else if ((ip = gnrc_pktsnip_search_type(pkt, GNRC_NETTYPE_IPV4))) {
+            ipv4_hdr_t *ip_hdr = ip->data;
+            aux->ttl = ip_hdr->ttl;
+            aux->flags &= ~SOCK_AUX_GET_TTL;
+        }
+#endif
     }
 #endif
     *data = pkt->data;

@@ -18,21 +18,36 @@
 #include "net/sock.h"
 #include "sched.h"
 
+#if IS_USED(MODULE_GNRC_IPV4)
+#include "net/gnrc/ipv4.h"
+#include "net/ipv4/hdr.h"
+#endif
+
 #define _MSG_QUEUE_SIZE     (4)
 
 static msg_t _msg_queue[_MSG_QUEUE_SIZE];
 static gnrc_netreg_entry_t _ip_handler;
+#if IS_USED(MODULE_GNRC_IPV4)
+static gnrc_netreg_entry_t _ip_handler4;
+#endif
 
 void _net_init(void)
 {
     msg_init_queue(_msg_queue, _MSG_QUEUE_SIZE);
     gnrc_netreg_entry_init_pid(&_ip_handler, GNRC_NETREG_DEMUX_CTX_ALL,
                                thread_getpid());
+#if IS_USED(MODULE_GNRC_IPV4)
+    gnrc_netreg_entry_init_pid(&_ip_handler4, GNRC_NETREG_DEMUX_CTX_ALL,
+                               thread_getpid());
+#endif
 }
 
 void _prepare_send_checks(void)
 {
     gnrc_netreg_register(GNRC_NETTYPE_IPV6, &_ip_handler);
+#if IS_USED(MODULE_GNRC_IPV4)
+    gnrc_netreg_register(GNRC_NETTYPE_IPV4, &_ip_handler4);
+#endif
 }
 
 static gnrc_pktsnip_t *_build_ipv6_packet(const ipv6_addr_t *src,
@@ -139,5 +154,100 @@ bool _check_packet(const ipv6_addr_t *src, const ipv6_addr_t *dst,
                 (data_len == ipv6->next->size) &&
                 (memcmp(data, ipv6->next->data, data_len) == 0));
 }
+
+#if IS_USED(MODULE_GNRC_IPV4)
+static gnrc_pktsnip_t *_build_ipv4_packet(const ipv4_addr_t *src,
+                                          const ipv4_addr_t *dst, uint8_t nh,
+                                          void *data, size_t data_len,
+                                          uint16_t netif,
+                                          const inject_aux_t *aux)
+{
+    gnrc_pktsnip_t *netif_hdr_snip, *ipv4, *payload;
+    ipv4_hdr_t *ipv4_hdr;
+
+    if ((netif > INT16_MAX) || (data_len > UINT16_MAX)) {
+        return NULL;
+    }
+
+    payload = gnrc_pktbuf_add(NULL, data, data_len, GNRC_NETTYPE_UNDEF);
+    if (payload == NULL) {
+        return NULL;
+    }
+    ipv4 = gnrc_ipv4_hdr_build(NULL, src, dst);
+    if (ipv4 == NULL) {
+        return NULL;
+    }
+    ipv4_hdr = ipv4->data;
+    ipv4_hdr->ttl = 64;
+    ipv4_hdr->protocol = nh;
+    payload = gnrc_pkt_append(payload, ipv4);
+    netif_hdr_snip = gnrc_netif_hdr_build(NULL, 0, NULL, 0);
+    if (netif_hdr_snip == NULL) {
+        return NULL;
+    }
+    gnrc_netif_hdr_t *netif_hdr = netif_hdr_snip->data;
+    netif_hdr->if_pid = (kernel_pid_t)netif;
+    if (aux) {
+        gnrc_netif_hdr_set_timestamp(netif_hdr, aux->timestamp);
+        netif_hdr->rssi = aux->rssi;
+    }
+    return gnrc_pkt_append(payload, netif_hdr_snip);
+}
+
+bool _inject_packet4_aux(const ipv4_addr_t *src, const ipv4_addr_t *dst,
+                         uint8_t proto, void *data, size_t data_len,
+                         uint16_t netif, const inject_aux_t *aux)
+{
+    gnrc_pktsnip_t *pkt = _build_ipv4_packet(src, dst, proto, data, data_len,
+                                             netif, aux);
+
+    if (pkt == NULL) {
+        return false;
+    }
+    /* put directly in mbox, dispatching to IPv4 would result in the packet
+     * being dropped, since dst is not on any interface */
+    return (gnrc_netapi_dispatch_receive(GNRC_NETTYPE_IPV4, proto, pkt) > 0);
+}
+
+bool _check_packet4(const ipv4_addr_t *src, const ipv4_addr_t *dst,
+                    uint8_t proto, void *data, size_t data_len,
+                    uint16_t netif)
+{
+    gnrc_pktsnip_t *pkt, *ipv4;
+    ipv4_hdr_t *ipv4_hdr;
+    msg_t msg;
+
+    msg_receive(&msg);
+    if (msg.type != GNRC_NETAPI_MSG_TYPE_SND) {
+        return false;
+    }
+    pkt = msg.content.ptr;
+    if (netif != SOCK_ADDR_ANY_NETIF) {
+        gnrc_netif_hdr_t *netif_hdr;
+
+        if (pkt->type != GNRC_NETTYPE_NETIF) {
+            return _res(pkt, false);
+        }
+        netif_hdr = pkt->data;
+        if (netif_hdr->if_pid != (int)netif) {
+            return _res(pkt, false);
+        }
+        ipv4 = pkt->next;
+    }
+    else {
+        ipv4 = pkt;
+    }
+    if (ipv4->type != GNRC_NETTYPE_IPV4) {
+        return _res(pkt, false);
+    }
+    ipv4_hdr = ipv4->data;
+    return _res(pkt, (memcmp(src, &ipv4_hdr->src, sizeof(ipv4_addr_t)) == 0) &&
+                (memcmp(dst, &ipv4_hdr->dst, sizeof(ipv4_addr_t)) == 0) &&
+                (ipv4_hdr->protocol == proto) &&
+                (ipv4->next != NULL) &&
+                (data_len == ipv4->next->size) &&
+                (memcmp(data, ipv4->next->data, data_len) == 0));
+}
+#endif /* IS_USED(MODULE_GNRC_IPV4) */
 
 /** @} */

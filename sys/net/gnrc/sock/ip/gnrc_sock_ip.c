@@ -28,6 +28,10 @@
 
 #include "gnrc_sock_internal.h"
 
+#if IS_USED(MODULE_GNRC_IPV4)
+#include "net/ipv4/addr.h"
+#endif
+
 #ifdef SOCK_HAS_ASYNC_CTX
 #include "net/sock/async/event.h"
 #endif
@@ -35,6 +39,8 @@
 int sock_ip_create(sock_ip_t *sock, const sock_ip_ep_t *local,
                    const sock_ip_ep_t *remote, uint8_t proto, uint16_t flags)
 {
+    int family;
+
     assert(sock);
     if ((local != NULL) && (remote != NULL) &&
         (local->netif != SOCK_ADDR_ANY_NETIF) &&
@@ -59,8 +65,32 @@ int sock_ip_create(sock_ip_t *sock, const sock_ip_ep_t *local,
         }
         gnrc_ep_set(&sock->remote, remote, sizeof(sock_ip_ep_t));
     }
-    gnrc_sock_create(&sock->reg, GNRC_NETTYPE_IPV6,
-                     proto);
+
+    /* net_gnrc_netreg has no notion of address family: pick the nettype to
+     * register under from whichever endpoint was given. Neither given keeps
+     * the pre-IPv4 default of preferring IPv6, when built in. */
+    family = (local != NULL) ? local->family :
+             ((remote != NULL) ? remote->family : AF_UNSPEC);
+    switch (family) {
+#if IS_USED(MODULE_GNRC_IPV4)
+        case AF_INET:
+            sock->type = GNRC_NETTYPE_IPV4;
+            break;
+#endif
+#if IS_USED(MODULE_GNRC_IPV6)
+        case AF_INET6:
+            sock->type = GNRC_NETTYPE_IPV6;
+            break;
+#endif
+        default:
+#if IS_USED(MODULE_GNRC_IPV6)
+            sock->type = GNRC_NETTYPE_IPV6;
+#else
+            sock->type = GNRC_NETTYPE_IPV4;
+#endif
+            break;
+    }
+    gnrc_sock_create(&sock->reg, sock->type, proto);
     sock->flags = flags;
     return 0;
 }
@@ -68,7 +98,15 @@ int sock_ip_create(sock_ip_t *sock, const sock_ip_ep_t *local,
 void sock_ip_close(sock_ip_t *sock)
 {
     assert(sock != NULL);
-    gnrc_netreg_unregister(GNRC_NETTYPE_IPV6, &sock->reg.entry);
+    /* GNRC_NETTYPE_UNDEF (the zero-initialized default, and what this sets
+     * sock->type back to below) is never a real registration target for a
+     * raw IP sock: skip unregistering with it, since nothing ever registers
+     * under it and gnrc_netreg_unregister() would walk off the end of the
+     * (always empty) list */
+    if (sock->type != GNRC_NETTYPE_UNDEF) {
+        gnrc_netreg_unregister(sock->type, &sock->reg.entry);
+        sock->type = GNRC_NETTYPE_UNDEF;
+    }
 #ifdef SOCK_HAS_ASYNC_CTX
     sock_event_close(sock_ip_get_async_ctx(sock));
 #endif
@@ -160,14 +198,21 @@ ssize_t sock_ip_recv_buf_aux(sock_ip_t *sock, void **data, void **buf_ctx,
         /* return remote to possibly block if wrong remote */
         memcpy(remote, &tmp, sizeof(tmp));
     }
-    if ((sock->remote.family != AF_UNSPEC) &&   /* check remote end-point if set */
-        /* We only have IPv6 for now, so just comparing the whole end point
-         * should suffice */
-        ((memcmp(&sock->remote.addr, &ipv6_addr_unspecified,
-                 sizeof(ipv6_addr_t)) != 0) &&
-         (memcmp(&sock->remote.addr, &tmp.addr, sizeof(ipv6_addr_t)) != 0))) {
-        gnrc_pktbuf_release(pkt);
-        return -EPROTO;
+    if (sock->remote.family != AF_UNSPEC) {   /* check remote end-point if set */
+        size_t addr_size = sizeof(ipv6_addr_t);
+        const void *unspec = &ipv6_addr_unspecified;
+
+#if IS_USED(MODULE_GNRC_IPV4)
+        if (sock->remote.family == AF_INET) {
+            addr_size = sizeof(ipv4_addr_t);
+            unspec = &ipv4_addr_unspecified;
+        }
+#endif
+        if ((memcmp(&sock->remote.addr, unspec, addr_size) != 0) &&
+            (memcmp(&sock->remote.addr, &tmp.addr, addr_size) != 0)) {
+            gnrc_pktbuf_release(pkt);
+            return -EPROTO;
+        }
     }
 #if IS_USED(MODULE_SOCK_AUX_LOCAL)
     if (aux != NULL) {

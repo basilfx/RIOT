@@ -104,8 +104,18 @@ typedef struct {
  */
 static inline bool gnrc_af_not_supported(int af)
 {
-    /* TODO: add AF_INET support */
-    return (af != AF_INET6);
+    switch (af) {
+#ifdef SOCK_HAS_IPV6
+        case AF_INET6:
+            return false;
+#endif
+#ifdef SOCK_HAS_IPV4
+        case AF_INET:
+            return false;
+#endif
+        default:
+            return true;
+    }
 }
 
 /**

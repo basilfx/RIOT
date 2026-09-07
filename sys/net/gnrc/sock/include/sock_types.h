@@ -127,6 +127,15 @@ struct sock_ip {
     sock_ip_ep_t local;                    /**< local end-point */
     sock_ip_ep_t remote;                   /**< remote end-point */
     uint16_t flags;                        /**< option flags */
+    /**
+     * @brief   The @ref net_gnrc_nettype the sock is registered under
+     *
+     * Determined from gnrc_sock_reg_t::local or gnrc_sock_reg_t::remote at
+     * creation time, since @ref net_gnrc_netreg has no notion of address
+     * family: @ref GNRC_NETTYPE_IPV6 or @ref GNRC_NETTYPE_IPV4. Needed so
+     * @ref sock_ip_close can unregister from the matching nettype.
+     */
+    gnrc_nettype_t type;
 };
 
 /**

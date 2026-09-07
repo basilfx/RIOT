@@ -18,6 +18,7 @@ endif
 
 USEMODULE += sock_ip
 USEMODULE += gnrc_ipv6
+USEMODULE += gnrc_ipv4
 USEMODULE += ps
 
 USEMODULE += xtimer

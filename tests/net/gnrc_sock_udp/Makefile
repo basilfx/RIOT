@@ -24,6 +24,7 @@ endif
 USEMODULE += gnrc_sock_check_reuse
 USEMODULE += sock_udp
 USEMODULE += gnrc_ipv6
+USEMODULE += gnrc_ipv4
 USEMODULE += ps
 USEMODULE += xtimer
 
