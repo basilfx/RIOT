@@ -22,6 +22,7 @@
 #include "byteorder.h"
 #include "evtimer.h"
 #include "evtimer_msg.h"
+#include "net/af.h"
 #include "net/inet_csum.h"
 #include "net/gnrc.h"
 #include "include/gnrc_tcp_common.h"
@@ -31,6 +32,9 @@
 
 #ifdef MODULE_GNRC_IPV6
 #include "net/gnrc/ipv6.h"
+#endif
+#ifdef MODULE_GNRC_IPV4
+#include "net/gnrc/ipv4/hdr.h"
 #endif
 
 #define ENABLE_DEBUG 0
@@ -62,7 +66,12 @@ int _gnrc_tcp_pkt_build_reset_from_pkt(gnrc_pktsnip_t **out_pkt,
 #ifdef MODULE_GNRC_IPV6
     gnrc_pktsnip_t *ip6_snp = gnrc_pktsnip_search_type(in_pkt,
                                                        GNRC_NETTYPE_IPV6);
-    ipv6_hdr_t *ip6_hdr = (ipv6_hdr_t *)ip6_snp->data;
+    ipv6_hdr_t *ip6_hdr = (ip6_snp != NULL) ? (ipv6_hdr_t *)ip6_snp->data : NULL;
+#endif
+#ifdef MODULE_GNRC_IPV4
+    gnrc_pktsnip_t *ip4_snp = gnrc_pktsnip_search_type(in_pkt,
+                                                       GNRC_NETTYPE_IPV4);
+    ipv4_hdr_t *ip4_hdr = (ip4_snp != NULL) ? (ipv4_hdr_t *)ip4_snp->data : NULL;
 #endif
 
     /* Setup header information */
@@ -104,43 +113,64 @@ int _gnrc_tcp_pkt_build_reset_from_pkt(gnrc_pktsnip_t **out_pkt,
     }
     *out_pkt = tcp_snp;
 
-    /* Build new network layer header */
+    /* Build new network layer header, matching the incoming packet's family */
 #ifdef MODULE_GNRC_IPV6
-    ip6_snp = gnrc_ipv6_hdr_build(tcp_snp, &(ip6_hdr->dst), &(ip6_hdr->src));
-    if (ip6_snp == NULL) {
-        gnrc_pktbuf_release(tcp_snp);
-        *(out_pkt) = NULL;
-        TCP_DEBUG_ERROR("-ENOMEM: Can't alloc buffer for IPv6 header.");
-        TCP_DEBUG_LEAVE;
-        return -ENOMEM;
-    }
-    *out_pkt = ip6_snp;
-
-    /* Add netif header in case the receiver addr sent from a link local address */
-    if (ipv6_addr_is_link_local(&ip6_hdr->src)) {
-
-        /* Search for netif header in received packet */
-        gnrc_pktsnip_t *net_snp = gnrc_pktsnip_search_type(in_pkt,
-                                                           GNRC_NETTYPE_NETIF);
-        gnrc_netif_hdr_t *net_hdr = (gnrc_netif_hdr_t *)net_snp->data;
-
-        /* Allocate new header and set interface id */
-        net_snp = gnrc_netif_hdr_build(NULL, 0, NULL, 0);
-        if (net_snp == NULL) {
-            gnrc_pktbuf_release(ip6_snp);
+    if (ip6_hdr != NULL) {
+        ip6_snp = gnrc_ipv6_hdr_build(tcp_snp, &(ip6_hdr->dst), &(ip6_hdr->src));
+        if (ip6_snp == NULL) {
+            gnrc_pktbuf_release(tcp_snp);
             *(out_pkt) = NULL;
-            TCP_DEBUG_ERROR("-ENOMEM: Can't alloc buffer for netif header.");
+            TCP_DEBUG_ERROR("-ENOMEM: Can't alloc buffer for IPv6 header.");
             TCP_DEBUG_LEAVE;
             return -ENOMEM;
         }
-        else {
-            ((gnrc_netif_hdr_t *)net_snp->data)->if_pid = net_hdr->if_pid;
-            *(out_pkt) = gnrc_pkt_prepend(ip6_snp, net_snp);
+        *out_pkt = ip6_snp;
+
+        /* Add netif header in case the receiver addr sent from a link local address */
+        if (ipv6_addr_is_link_local(&ip6_hdr->src)) {
+
+            /* Search for netif header in received packet */
+            gnrc_pktsnip_t *net_snp = gnrc_pktsnip_search_type(in_pkt,
+                                                               GNRC_NETTYPE_NETIF);
+            gnrc_netif_hdr_t *net_hdr = (gnrc_netif_hdr_t *)net_snp->data;
+
+            /* Allocate new header and set interface id */
+            net_snp = gnrc_netif_hdr_build(NULL, 0, NULL, 0);
+            if (net_snp == NULL) {
+                gnrc_pktbuf_release(ip6_snp);
+                *(out_pkt) = NULL;
+                TCP_DEBUG_ERROR("-ENOMEM: Can't alloc buffer for netif header.");
+                TCP_DEBUG_LEAVE;
+                return -ENOMEM;
+            }
+            else {
+                ((gnrc_netif_hdr_t *)net_snp->data)->if_pid = net_hdr->if_pid;
+                *(out_pkt) = gnrc_pkt_prepend(ip6_snp, net_snp);
+            }
         }
     }
-#else
-    TCP_DEBUG_ERROR("Missing network layer. Add module to makefile.");
+    else
 #endif
+#ifdef MODULE_GNRC_IPV4
+    if (ip4_hdr != NULL) {
+        gnrc_pktsnip_t *ip4_out_snp = gnrc_ipv4_hdr_build(tcp_snp, &(ip4_hdr->dst),
+                                                          &(ip4_hdr->src));
+        if (ip4_out_snp == NULL) {
+            gnrc_pktbuf_release(tcp_snp);
+            *(out_pkt) = NULL;
+            TCP_DEBUG_ERROR("-ENOMEM: Can't alloc buffer for IPv4 header.");
+            TCP_DEBUG_LEAVE;
+            return -ENOMEM;
+        }
+        *out_pkt = ip4_out_snp;
+        /* IPv4 has no link-local scope, so unlike IPv6 above there is no
+         * netif to derive from the address */
+    }
+    else
+#endif
+    {
+        TCP_DEBUG_ERROR("Missing network layer. Add module to makefile.");
+    }
     TCP_DEBUG_LEAVE;
     return 0;
 }
@@ -226,39 +256,62 @@ int _gnrc_tcp_pkt_build(gnrc_tcp_tcb_t *tcb, gnrc_pktsnip_t **out_pkt,
 
     /* Build network layer header */
 #ifdef MODULE_GNRC_IPV6
-    ipv6_addr_t *src_addr = (ipv6_addr_t *) tcb->local_addr;
-    ipv6_addr_t *dst_addr = (ipv6_addr_t *) tcb->peer_addr;
+    if (tcb->address_family == AF_INET6) {
+        ipv6_addr_t *src_addr = (ipv6_addr_t *) tcb->local_addr;
+        ipv6_addr_t *dst_addr = (ipv6_addr_t *) tcb->peer_addr;
 
-    gnrc_pktsnip_t *ip6_snp = gnrc_ipv6_hdr_build(tcp_snp, src_addr, dst_addr);
-    if (ip6_snp == NULL) {
-        gnrc_pktbuf_release(tcp_snp);
-        *(out_pkt) = NULL;
-        TCP_DEBUG_ERROR("-ENOMEM: Can't allocate buffer for IPv6 header.");
-        TCP_DEBUG_LEAVE;
-        return -ENOMEM;
-    }
-    else {
-        *(out_pkt) = ip6_snp;
-    }
-
-    /* Prepend network interface header if an interface id was specified */
-    if (tcb->ll_iface > 0) {
-        gnrc_pktsnip_t *net_snp = gnrc_netif_hdr_build(NULL, 0, NULL, 0);
-        if (net_snp == NULL) {
-            gnrc_pktbuf_release(ip6_snp);
+        gnrc_pktsnip_t *ip6_snp = gnrc_ipv6_hdr_build(tcp_snp, src_addr, dst_addr);
+        if (ip6_snp == NULL) {
+            gnrc_pktbuf_release(tcp_snp);
             *(out_pkt) = NULL;
-            TCP_DEBUG_ERROR("-ENOMEM: Can't allocate buffer for netif header.");
+            TCP_DEBUG_ERROR("-ENOMEM: Can't allocate buffer for IPv6 header.");
             TCP_DEBUG_LEAVE;
             return -ENOMEM;
         }
         else {
-            ((gnrc_netif_hdr_t *)net_snp->data)->if_pid = (kernel_pid_t)tcb->ll_iface;
-            *(out_pkt) = gnrc_pkt_prepend(ip6_snp, net_snp);
+            *(out_pkt) = ip6_snp;
+        }
+
+        /* Prepend network interface header if an interface id was specified */
+        if (tcb->ll_iface > 0) {
+            gnrc_pktsnip_t *net_snp = gnrc_netif_hdr_build(NULL, 0, NULL, 0);
+            if (net_snp == NULL) {
+                gnrc_pktbuf_release(ip6_snp);
+                *(out_pkt) = NULL;
+                TCP_DEBUG_ERROR("-ENOMEM: Can't allocate buffer for netif header.");
+                TCP_DEBUG_LEAVE;
+                return -ENOMEM;
+            }
+            else {
+                ((gnrc_netif_hdr_t *)net_snp->data)->if_pid = (kernel_pid_t)tcb->ll_iface;
+                *(out_pkt) = gnrc_pkt_prepend(ip6_snp, net_snp);
+            }
         }
     }
-#else
-    TCP_DEBUG_ERROR("Missing network layer. Add module to makefile.");
+    else
 #endif
+#ifdef MODULE_GNRC_IPV4
+    if (tcb->address_family == AF_INET) {
+        ipv4_addr_t *src_addr = (ipv4_addr_t *) tcb->local_addr;
+        ipv4_addr_t *dst_addr = (ipv4_addr_t *) tcb->peer_addr;
+
+        gnrc_pktsnip_t *ip4_snp = gnrc_ipv4_hdr_build(tcp_snp, src_addr, dst_addr);
+        if (ip4_snp == NULL) {
+            gnrc_pktbuf_release(tcp_snp);
+            *(out_pkt) = NULL;
+            TCP_DEBUG_ERROR("-ENOMEM: Can't allocate buffer for IPv4 header.");
+            TCP_DEBUG_LEAVE;
+            return -ENOMEM;
+        }
+        *(out_pkt) = ip4_snp;
+        /* IPv4 has no link-local scope, so unlike IPv6 above there is no
+         * netif header to prepend here */
+    }
+    else
+#endif
+    {
+        TCP_DEBUG_ERROR("Missing network layer. Add module to makefile.");
+    }
 
     /* Calculate sequence space number consumption for this packet */
     if (seq_con != NULL) {
@@ -543,6 +596,11 @@ uint16_t _gnrc_tcp_pkt_calc_csum(const gnrc_pktsnip_t *hdr,
 #ifdef MODULE_GNRC_IPV6
         case GNRC_NETTYPE_IPV6:
             csum = ipv6_hdr_inet_csum(csum, pseudo_hdr->data, PROTNUM_TCP, len);
+            break;
+#endif
+#ifdef MODULE_GNRC_IPV4
+        case GNRC_NETTYPE_IPV4:
+            csum = ipv4_hdr_inet_csum(csum, pseudo_hdr->data, PROTNUM_TCP, len);
             break;
 #endif
         default:

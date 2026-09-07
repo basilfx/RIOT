@@ -28,6 +28,10 @@
 
 #ifdef MODULE_GNRC_IPV6
 #include "net/gnrc/ipv6.h"
+#define GNRC_TCP_ADDR_LEN (sizeof(ipv6_addr_t))
+#elif defined(MODULE_GNRC_IPV4)
+#include "net/ipv4/addr.h"
+#define GNRC_TCP_ADDR_LEN (sizeof(ipv4_addr_t))
 #endif
 
 #ifdef __cplusplus
@@ -39,9 +43,9 @@ extern "C" {
  */
 typedef struct sock_tcp {
     uint8_t address_family;                   /**< Address Family of local_addr / peer_addr */
-#ifdef MODULE_GNRC_IPV6
-    uint8_t local_addr[sizeof(ipv6_addr_t)];  /**< Local IP address */
-    uint8_t peer_addr[sizeof(ipv6_addr_t)];   /**< Peer IP address */
+#if defined(MODULE_GNRC_IPV6) || defined(MODULE_GNRC_IPV4)
+    uint8_t local_addr[GNRC_TCP_ADDR_LEN];    /**< Local IP address */
+    uint8_t peer_addr[GNRC_TCP_ADDR_LEN];     /**< Peer IP address */
     int8_t  ll_iface;                         /**< Link layer interface id to use. */
 #endif
     uint16_t local_port;   /**< Local connections port number */

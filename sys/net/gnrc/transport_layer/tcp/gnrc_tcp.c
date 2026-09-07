@@ -137,31 +137,45 @@ int gnrc_tcp_ep_init(gnrc_tcp_ep_t *ep, int family, const uint8_t *addr, size_t 
 {
     TCP_DEBUG_ENTER;
 #ifdef MODULE_GNRC_IPV6
-    if (family != AF_INET6) {
-        TCP_DEBUG_ERROR("-EAFNOSUPPORT: Parameter family is not AF_INET6.");
+    if (family == AF_INET6) {
+        if (addr == NULL && addr_size == 0) {
+            ipv6_addr_set_unspecified((ipv6_addr_t *) ep->addr.ipv6);
+        }
+        else if (addr_size == sizeof(ipv6_addr_t)) {
+            memcpy(ep->addr.ipv6, addr, sizeof(ipv6_addr_t));
+        }
+        else {
+            TCP_DEBUG_ERROR("-EINVAL: Parameter addr is invalid.");
+            TCP_DEBUG_LEAVE;
+            return -EINVAL;
+        }
+    }
+    else
+#endif
+#ifdef MODULE_GNRC_IPV4
+    if (family == AF_INET) {
+        if (addr == NULL && addr_size == 0) {
+            memcpy(ep->addr.ipv4, &ipv4_addr_unspecified, sizeof(ipv4_addr_t));
+        }
+        else if (addr_size == sizeof(ipv4_addr_t)) {
+            memcpy(ep->addr.ipv4, addr, sizeof(ipv4_addr_t));
+        }
+        else {
+            TCP_DEBUG_ERROR("-EINVAL: Parameter addr is invalid.");
+            TCP_DEBUG_LEAVE;
+            return -EINVAL;
+        }
+    }
+    else
+#endif
+    {
+        /* Suppress Compiler Warnings */
+        (void) addr;
+        (void) addr_size;
+        TCP_DEBUG_ERROR("-EAFNOSUPPORT: Parameter family is not supported.");
         TCP_DEBUG_LEAVE;
         return -EAFNOSUPPORT;
     }
-
-    if (addr == NULL && addr_size == 0) {
-        ipv6_addr_set_unspecified((ipv6_addr_t *) ep->addr.ipv6);
-    }
-    else if (addr_size == sizeof(ipv6_addr_t)) {
-        memcpy(ep->addr.ipv6, addr, sizeof(ipv6_addr_t));
-    }
-    else {
-        TCP_DEBUG_ERROR("-EINVAL: Parameter addr is invalid.");
-        TCP_DEBUG_LEAVE;
-        return -EINVAL;
-    }
-#else
-    /* Suppress Compiler Warnings */
-    (void) addr;
-    (void) addr_size;
-    TCP_DEBUG_ERROR("-EAFNOSUPPORT: No network layer configured.");
-    TCP_DEBUG_LEAVE;
-    return -EAFNOSUPPORT;
-#endif
 
     ep->family = family;
     ep->port = port;
@@ -170,6 +184,77 @@ int gnrc_tcp_ep_init(gnrc_tcp_ep_t *ep, int family, const uint8_t *addr, size_t 
     return 0;
 }
 
+#ifdef MODULE_GNRC_IPV4
+/**
+ * @brief Parses a plain (no brackets, no scope id) "addr[:port]" string,
+ *        as used for an IPv4 endpoint. IPv4 has no link-local scope in this
+ *        implementation, so unlike the IPv6 "[addr]:port%netif" notation
+ *        there is no netif identifier to parse here.
+ *
+ * @param[in,out] ep    Endpoint to initialize.
+ * @param[in]     str   String containing an IPv4 address, optionally
+ *                      followed by ":port".
+ *
+ * @return   0 on success.
+ * @return   -EINVAL if parsing of @p str failed.
+ */
+static int _ep_from_str_ipv4(gnrc_tcp_ep_t *ep, const char *str)
+{
+    char tmp[IPV4_ADDR_MAX_STR_LEN];
+    unsigned port = 0;
+    size_t len;
+
+    /* Examine optional port number */
+    const char *port_begin = strchr(str, ':');
+
+    len = port_begin ? (size_t)(port_begin - str) : strlen(str);
+    if (len >= sizeof(tmp)) {
+        TCP_DEBUG_ERROR("-EINVAL: Invalid address string.");
+        TCP_DEBUG_LEAVE;
+        return -EINVAL;
+    }
+    memcpy(tmp, str, len);
+    tmp[len] = '\0';
+
+    if (port_begin) {
+        /* Ensure that there are characters left to parse after ':'. */
+        if (*(++port_begin) == '\0') {
+            TCP_DEBUG_ERROR("-EINVAL: Invalid address string.");
+            TCP_DEBUG_LEAVE;
+            return -EINVAL;
+        }
+
+        /* Ensure that port is a number (atol, does not report errors) */
+        for (const char *ptr = port_begin; *ptr; ++ptr) {
+            if ((*ptr < '0') || ('9' < *ptr)) {
+                TCP_DEBUG_ERROR("-EINVAL: Invalid address string.");
+                TCP_DEBUG_LEAVE;
+                return -EINVAL;
+            }
+        }
+
+        /* Read and verify that given number port is within range */
+        port = atol(port_begin);
+        if (port > 0xFFFF) {
+            TCP_DEBUG_ERROR("-EINVAL: Invalid address string.");
+            TCP_DEBUG_LEAVE;
+            return -EINVAL;
+        }
+    }
+
+    if (ipv4_addr_from_str((ipv4_addr_t *) ep->addr.ipv4, tmp) == NULL) {
+        TCP_DEBUG_ERROR("-EINVAL: Invalid address string.");
+        TCP_DEBUG_LEAVE;
+        return -EINVAL;
+    }
+    ep->family = AF_INET;
+    ep->port = (uint16_t) port;
+    ep->netif = 0;
+    TCP_DEBUG_LEAVE;
+    return 0;
+}
+#endif /* MODULE_GNRC_IPV4 */
+
 int gnrc_tcp_ep_from_str(gnrc_tcp_ep_t *ep, const char *str)
 {
     TCP_DEBUG_ENTER;
@@ -177,6 +262,15 @@ int gnrc_tcp_ep_from_str(gnrc_tcp_ep_t *ep, const char *str)
 
     unsigned port = 0;
     unsigned netif = 0;
+
+#ifdef MODULE_GNRC_IPV4
+    /* An IPv4 address string never starts with '[': that notation is
+     * reserved for IPv6's "[addr]:port%netif" form, needed there to
+     * disambiguate the address' own colons from a trailing ":port". */
+    if (str[0] != '[') {
+        return _ep_from_str_ipv4(ep, str);
+    }
+#endif
 
     /* Examine given string */
     const char *addr_begin = strchr(str, '[');
@@ -312,6 +406,8 @@ void gnrc_tcp_tcb_init(gnrc_tcp_tcb_t *tcb)
     memset(tcb, 0, sizeof(gnrc_tcp_tcb_t));
 #ifdef MODULE_GNRC_IPV6
     tcb->address_family = AF_INET6;
+#elif defined(MODULE_GNRC_IPV4)
+    tcb->address_family = AF_INET;
 #else
     TCP_DEBUG_ERROR("Missing network layer. Add module to makefile.");
 #endif
@@ -343,27 +439,37 @@ int gnrc_tcp_open(gnrc_tcp_tcb_t *tcb, const gnrc_tcp_ep_t *remote, uint16_t loc
     assert(remote->port != PORT_UNSPEC);
 
     /* Verify remote ep */
+    if (false
 #ifdef MODULE_GNRC_IPV6
-    if (remote->family != AF_INET6) {
+       || (remote->family == AF_INET6)
+#endif
+#ifdef MODULE_GNRC_IPV4
+       || (remote->family == AF_INET)
+#endif
+       ) {
+        /* supported family, nothing to do here */
+    }
+    else {
         TCP_DEBUG_ERROR("-EAFNOSUPPORT: remote AF-Family not supported.");
         TCP_DEBUG_LEAVE;
         return -EAFNOSUPPORT;
     }
-#else
-    TCP_DEBUG_ERROR("-EAFNOSUPPORT: AF-Family not supported.");
-    TCP_DEBUG_LEAVE;
-    return -EAFNOSUPPORT;
-#endif
 
     /* Protect TCB against usage in other TCP functions */
     mutex_lock(&(tcb->function_lock));
 
-    /* Check if AF-Family for target address matches internally used AF-Family */
+    /* Check if AF-Family for target address matches internally used AF-Family.
+     * In a dual-stack build a freshly initialized (not yet used) TCB has no
+     * fixed family of its own yet, so adopt remote's instead of rejecting it. */
     if (remote->family != tcb->address_family) {
+#if defined(MODULE_GNRC_IPV6) && defined(MODULE_GNRC_IPV4)
+        tcb->address_family = remote->family;
+#else
         mutex_unlock(&(tcb->function_lock));
         TCP_DEBUG_ERROR("-EINVAL: local and remote AF-Family don't match.");
         TCP_DEBUG_LEAVE;
         return -EINVAL;
+#endif
     }
 
     /* TCB is already connected: Return -EISCONN */
@@ -410,6 +516,18 @@ int gnrc_tcp_open(gnrc_tcp_tcb_t *tcb, const gnrc_tcp_ep_t *remote, uint16_t loc
             }
             tcb->ll_iface = first_netif->pid;
         }
+    }
+#endif
+#ifdef MODULE_GNRC_IPV4
+    if (tcb->address_family == AF_INET) {
+        /* Store Address information in TCB. IPv4 has no link-local scope,
+         * so unlike above there is no netif to derive from the address. */
+        if (memcpy(tcb->peer_addr, remote->addr.ipv4, sizeof(ipv4_addr_t)) == NULL) {
+            TCP_DEBUG_ERROR("-EINVAL: Invalid peer address.");
+            TCP_DEBUG_LEAVE;
+            return -EINVAL;
+        }
+        tcb->ll_iface = remote->netif;
     }
 #endif
 
@@ -476,17 +594,21 @@ int gnrc_tcp_listen(gnrc_tcp_tcb_queue_t *queue, gnrc_tcp_tcb_t *tcbs, size_t tc
     assert(local->port != PORT_UNSPEC);
 
     /* Verify given endpoint */
+    if (false
 #ifdef MODULE_GNRC_IPV6
-    if (local->family != AF_INET6) {
+       || (local->family == AF_INET6)
+#endif
+#ifdef MODULE_GNRC_IPV4
+       || (local->family == AF_INET)
+#endif
+       ) {
+        /* supported family, nothing to do here */
+    }
+    else {
         TCP_DEBUG_ERROR("-EAFNOSUPPORT: AF-Family not supported.");
         TCP_DEBUG_LEAVE;
         return -EAFNOSUPPORT;
     }
-#else
-    TCP_DEBUG_ERROR("-EAFNOSUPPORT: AF-Family not supported.");
-    TCP_DEBUG_LEAVE;
-    return -EAFNOSUPPORT;
-#endif
 
     /* Protect TCP Data structures against usage in other TCP function*/
     mutex_lock(&queue->lock);
@@ -500,12 +622,18 @@ int gnrc_tcp_listen(gnrc_tcp_tcb_queue_t *queue, gnrc_tcp_tcb_t *tcbs, size_t tc
     for (size_t i = 0; i < tcbs_len; ++i) {
         gnrc_tcp_tcb_t *tcb = &(tcbs[i]);
 
-        /* Verify current TCB */
+        /* Verify current TCB. In a dual-stack build a freshly initialized
+         * (not yet used) TCB has no fixed family of its own yet, so adopt
+         * local's instead of rejecting it. */
         if (tcb->address_family != local->family) {
+#if defined(MODULE_GNRC_IPV6) && defined(MODULE_GNRC_IPV4)
+            tcb->address_family = local->family;
+#else
             TCP_DEBUG_ERROR("-EINVAL: local and remote AF-Family don't match.");
             ret = -EINVAL;
+#endif
         }
-        else if (_gnrc_tcp_fsm_get_state(tcb) != FSM_STATE_CLOSED) {
+        if (!ret && _gnrc_tcp_fsm_get_state(tcb) != FSM_STATE_CLOSED) {
             TCP_DEBUG_ERROR("-EISCONN: tcb is already connected.");
             ret = -EISCONN;
         }
@@ -515,9 +643,18 @@ int gnrc_tcp_listen(gnrc_tcp_tcb_queue_t *queue, gnrc_tcp_tcb_t *tcbs, size_t tc
         {
 #ifdef MODULE_GNRC_IPV6
             if (tcb->address_family == AF_INET6) {
-                memcpy(tcb->local_addr, local->addr.ipv6, sizeof(tcb->local_addr));
+                memcpy(tcb->local_addr, local->addr.ipv6, sizeof(ipv6_addr_t));
 
                 if (ipv6_addr_is_unspecified((ipv6_addr_t *) tcb->local_addr)) {
+                    tcb->status |= STATUS_ALLOW_ANY_ADDR;
+                }
+            }
+#endif
+#ifdef MODULE_GNRC_IPV4
+            if (tcb->address_family == AF_INET) {
+                memcpy(tcb->local_addr, local->addr.ipv4, sizeof(ipv4_addr_t));
+
+                if (ipv4_addr_is_unspecified((ipv4_addr_t *) tcb->local_addr)) {
                     tcb->status |= STATUS_ALLOW_ANY_ADDR;
                 }
             }
@@ -1001,7 +1138,12 @@ int gnrc_tcp_get_local(gnrc_tcp_tcb_t *tcb, gnrc_tcp_ep_t *ep)
         ep->netif = tcb->ll_iface;
 #ifdef MODULE_GNRC_IPV6
         if (ep->family == AF_INET6) {
-            memcpy(ep->addr.ipv6, tcb->local_addr, sizeof(ep->addr.ipv6));
+            memcpy(ep->addr.ipv6, tcb->local_addr, sizeof(ipv6_addr_t));
+        }
+#endif
+#ifdef MODULE_GNRC_IPV4
+        if (ep->family == AF_INET) {
+            memcpy(ep->addr.ipv4, tcb->local_addr, sizeof(ipv4_addr_t));
         }
 #endif
     } else {
@@ -1034,7 +1176,12 @@ int gnrc_tcp_get_remote(gnrc_tcp_tcb_t *tcb, gnrc_tcp_ep_t *ep)
         ep->netif = 0;
 #ifdef MODULE_GNRC_IPV6
         if (ep->family == AF_INET6) {
-            memcpy(ep->addr.ipv6, tcb->peer_addr, sizeof(ep->addr.ipv6));
+            memcpy(ep->addr.ipv6, tcb->peer_addr, sizeof(ipv6_addr_t));
+        }
+#endif
+#ifdef MODULE_GNRC_IPV4
+        if (ep->family == AF_INET) {
+            memcpy(ep->addr.ipv4, tcb->peer_addr, sizeof(ipv4_addr_t));
         }
 #endif
     } else {
@@ -1073,7 +1220,16 @@ int gnrc_tcp_queue_get_local(gnrc_tcp_tcb_queue_t *queue, gnrc_tcp_ep_t *ep)
             if (tcb->status & STATUS_ALLOW_ANY_ADDR) {
                 ipv6_addr_set_unspecified((ipv6_addr_t *) ep->addr.ipv6);
             } else {
-                memcpy(ep->addr.ipv6, tcb->local_addr, sizeof(ep->addr.ipv6));
+                memcpy(ep->addr.ipv6, tcb->local_addr, sizeof(ipv6_addr_t));
+            }
+        }
+#endif
+#ifdef MODULE_GNRC_IPV4
+        if (ep->family == AF_INET) {
+            if (tcb->status & STATUS_ALLOW_ANY_ADDR) {
+                memcpy(ep->addr.ipv4, &ipv4_addr_unspecified, sizeof(ipv4_addr_t));
+            } else {
+                memcpy(ep->addr.ipv4, tcb->local_addr, sizeof(ipv4_addr_t));
             }
         }
 #endif

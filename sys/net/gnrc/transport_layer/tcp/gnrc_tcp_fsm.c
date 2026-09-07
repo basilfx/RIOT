@@ -19,6 +19,8 @@
 
 #include <utlist.h>
 #include <errno.h>
+#include <stdbool.h>
+#include <string.h>
 #include "random.h"
 #include "net/af.h"
 #include "net/gnrc.h"
@@ -33,6 +35,10 @@
 
 #ifdef MODULE_GNRC_IPV6
 #include "net/gnrc/ipv6.h"
+#endif
+#ifdef MODULE_GNRC_IPV4
+#include "net/gnrc/ipv4/hdr.h"
+#include "net/ipv4/addr.h"
 #endif
 
 #define ENABLE_DEBUG 0
@@ -184,6 +190,14 @@ static int _transition_to(gnrc_tcp_tcb_t *tcb, _gnrc_tcp_fsm_state_t state)
                     ipv6_addr_set_unspecified((ipv6_addr_t *) tcb->local_addr);
                 }
                 ipv6_addr_set_unspecified((ipv6_addr_t *) tcb->peer_addr);
+            }
+#endif
+#ifdef MODULE_GNRC_IPV4
+            if (tcb->address_family == AF_INET) {
+                if (tcb->status & STATUS_ALLOW_ANY_ADDR) {
+                    memcpy(tcb->local_addr, &ipv4_addr_unspecified, sizeof(ipv4_addr_t));
+                }
+                memcpy(tcb->peer_addr, &ipv4_addr_unspecified, sizeof(ipv4_addr_t));
             }
 #endif
             tcb->peer_port = PORT_UNSPEC;
@@ -481,16 +495,27 @@ static int _fsm_rcvd_pkt(gnrc_tcp_tcb_t *tcb, gnrc_pktsnip_t *in_pkt)
     seg_ack = byteorder_ntohl(tcp_hdr->ack_num);
     seg_wnd = byteorder_ntohs(tcp_hdr->window);
 
-    /* Extract network layer header */
+    /* Extract network layer header, matching the incoming packet's family */
+    void *ip = NULL;
 #ifdef MODULE_GNRC_IPV6
     snp = gnrc_pktsnip_search_type(in_pkt, GNRC_NETTYPE_IPV6);
-    if (snp == NULL) {
-        TCP_DEBUG_ERROR("Packet contains no IPv6 header.");
+    if (snp != NULL) {
+        ip = snp->data;
+    }
+#endif
+#ifdef MODULE_GNRC_IPV4
+    if (ip == NULL) {
+        snp = gnrc_pktsnip_search_type(in_pkt, GNRC_NETTYPE_IPV4);
+        if (snp != NULL) {
+            ip = snp->data;
+        }
+    }
+#endif
+    if (ip == NULL) {
+        TCP_DEBUG_ERROR("Packet contains no network layer header.");
         TCP_DEBUG_LEAVE;
         return 0;
     }
-    void *ip = snp->data;
-#endif
 
     /* Handle state LISTEN */
     if (tcb->state == FSM_STATE_LISTEN) {
@@ -529,6 +554,17 @@ static int _fsm_rcvd_pkt(gnrc_tcp_tcb_t *tcb, gnrc_pktsnip_t *in_pkt)
                         }
                     }
 #endif
+#ifdef MODULE_GNRC_IPV4
+                    if (snp->type == GNRC_NETTYPE_IPV4 && lst->address_family == AF_INET) {
+                        ipv4_addr_t *dst_addr = &((ipv4_hdr_t *)ip)->dst;
+                        ipv4_addr_t *src_addr = &((ipv4_hdr_t *)ip)->src;
+
+                        if (ipv4_addr_equal((ipv4_addr_t *)lst->local_addr, dst_addr) &&
+                            ipv4_addr_equal((ipv4_addr_t *)lst->peer_addr, src_addr)) {
+                            break;
+                        }
+                    }
+#endif
                 }
                 lst = lst->next;
             }
@@ -543,6 +579,7 @@ static int _fsm_rcvd_pkt(gnrc_tcp_tcb_t *tcb, gnrc_pktsnip_t *in_pkt)
             }
 
             /* SYN request is valid, fill TCB with connection information */
+            bool filled_tcb = false;
 #ifdef MODULE_GNRC_IPV6
             if (snp->type == GNRC_NETTYPE_IPV6 && tcb->address_family == AF_INET6) {
                 memcpy(tcb->local_addr, &((ipv6_hdr_t *)ip)->dst, sizeof(ipv6_addr_t));
@@ -558,12 +595,23 @@ static int _fsm_rcvd_pkt(gnrc_tcp_tcb_t *tcb, gnrc_pktsnip_t *in_pkt)
                     }
                     tcb->ll_iface = ((gnrc_netif_hdr_t *)tmp->data)->if_pid;
                 }
+                filled_tcb = true;
             }
-#else
-            TCP_DEBUG_ERROR("Missing network layer. Add module to makefile.");
-            TCP_DEBUG_LEAVE;
-            return 0;
 #endif
+#ifdef MODULE_GNRC_IPV4
+            if (snp->type == GNRC_NETTYPE_IPV4 && tcb->address_family == AF_INET) {
+                /* IPv4 has no link-local scope, so unlike IPv6 above there
+                 * is no netif to derive from the address */
+                memcpy(tcb->local_addr, &((ipv4_hdr_t *)ip)->dst, sizeof(ipv4_addr_t));
+                memcpy(tcb->peer_addr, &((ipv4_hdr_t *)ip)->src, sizeof(ipv4_addr_t));
+                filled_tcb = true;
+            }
+#endif
+            if (!filled_tcb) {
+                TCP_DEBUG_ERROR("Missing network layer. Add module to makefile.");
+                TCP_DEBUG_LEAVE;
+                return 0;
+            }
 
             tcb->local_port = dst;
             tcb->peer_port = src;
@@ -618,15 +666,24 @@ static int _fsm_rcvd_pkt(gnrc_tcp_tcb_t *tcb, gnrc_pktsnip_t *in_pkt)
                 _gnrc_tcp_pkt_acknowledge(tcb, seg_ack);
             }
             /* Set local network layer address accordingly */
+            bool set_local_addr = false;
 #ifdef MODULE_GNRC_IPV6
             if (snp->type == GNRC_NETTYPE_IPV6 && tcb->address_family == AF_INET6) {
                 memcpy(tcb->local_addr, &((ipv6_hdr_t *)ip)->dst, sizeof(ipv6_addr_t));
+                set_local_addr = true;
             }
-#else
-            TCP_DEBUG_ERROR("Missing network layer. Add module to makefile.");
-            TCP_DEBUG_LEAVE;
-            return 0;
 #endif
+#ifdef MODULE_GNRC_IPV4
+            if (snp->type == GNRC_NETTYPE_IPV4 && tcb->address_family == AF_INET) {
+                memcpy(tcb->local_addr, &((ipv4_hdr_t *)ip)->dst, sizeof(ipv4_addr_t));
+                set_local_addr = true;
+            }
+#endif
+            if (!set_local_addr) {
+                TCP_DEBUG_ERROR("Missing network layer. Add module to makefile.");
+                TCP_DEBUG_LEAVE;
+                return 0;
+            }
 
             /* SYN has been ACKed. Send ACK, T: SYN_SENT -> ESTABLISHED */
             if (tcb->snd_una > tcb->iss) {

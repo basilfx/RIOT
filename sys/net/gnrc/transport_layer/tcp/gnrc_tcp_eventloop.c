@@ -31,6 +31,9 @@
 #ifdef MODULE_GNRC_IPV6
 #include "net/gnrc/ipv6.h"
 #endif
+#ifdef MODULE_GNRC_IPV4
+#include "net/gnrc/ipv4/hdr.h"
+#endif
 
 #define ENABLE_DEBUG 0
 #include "debug.h"
@@ -82,15 +85,19 @@ static int _send(gnrc_pktsnip_t *pkt)
 
     /* Search for network layer */
 #ifdef MODULE_GNRC_IPV6
-    /* Get IPv6 header, discard packet if doesn't contain an ipv6 header */
     nw = gnrc_pktsnip_search_type(pkt, GNRC_NETTYPE_IPV6);
+#endif
+#ifdef MODULE_GNRC_IPV4
+    if (nw == NULL) {
+        nw = gnrc_pktsnip_search_type(pkt, GNRC_NETTYPE_IPV4);
+    }
+#endif
     if (nw == NULL) {
         gnrc_pktbuf_release(pkt);
-        TCP_DEBUG_ERROR("-EBADMSG: Packet contains no IPv6 header.");
+        TCP_DEBUG_ERROR("-EBADMSG: Packet contains no network layer header.");
         TCP_DEBUG_LEAVE;
         return -EBADMSG;
     }
-#endif
     /* Dispatch packet to network layer */
     assert(nw != NULL);
     if (!gnrc_netapi_dispatch_send(nw->type, GNRC_NETREG_DEMUX_CTX_ALL, pkt)) {
@@ -140,15 +147,19 @@ static int _receive(gnrc_pktsnip_t *pkt)
     pkt = tcp;
 
 #ifdef MODULE_GNRC_IPV6
-    /* Get IPv6 header, discard packet if doesn't contain an ip header */
     ip = gnrc_pktsnip_search_type(pkt, GNRC_NETTYPE_IPV6);
+#endif
+#ifdef MODULE_GNRC_IPV4
+    if (ip == NULL) {
+        ip = gnrc_pktsnip_search_type(pkt, GNRC_NETTYPE_IPV4);
+    }
+#endif
     if (ip == NULL) {
         gnrc_pktbuf_release(pkt);
-        TCP_DEBUG_ERROR("-EBADMSG: Packet contains no IPv6 header.");
+        TCP_DEBUG_ERROR("-EBADMSG: Packet contains no network layer header.");
         TCP_DEBUG_LEAVE;
         return -EBADMSG;
     }
-#endif
 
     /* Get TCP header */
     tcp = gnrc_pktsnip_search_type(pkt, GNRC_NETTYPE_TCP);
@@ -236,7 +247,33 @@ static int _receive(gnrc_pktsnip_t *pkt)
                 }
             }
         }
-#else
+#endif
+#ifdef MODULE_GNRC_IPV4
+        /* Check if current TCB is fitting for the incoming packet */
+        if (ip->type == GNRC_NETTYPE_IPV4 && tcb->address_family == AF_INET) {
+            /* If SYN is set, a connection is listening on that port ... */
+            ipv4_addr_t *tmp_addr = NULL;
+            _gnrc_tcp_fsm_state_t state = _gnrc_tcp_fsm_get_state(tcb);
+            if (syn && tcb->local_port == dst && state == FSM_STATE_LISTEN) {
+                /* ... and local addr is unspec or pre configured */
+                tmp_addr = &((ipv4_hdr_t *)ip->data)->dst;
+                if (ipv4_addr_equal((ipv4_addr_t *) tcb->local_addr, tmp_addr) ||
+                    ipv4_addr_is_unspecified((ipv4_addr_t *) tcb->local_addr)) {
+                    break;
+                }
+            }
+
+            /* If SYN is not set and the ports match ... */
+            if (!syn && tcb->local_port == dst && tcb->peer_port == src) {
+                /* .. and the IPv4 addresses match */
+                tmp_addr = &((ipv4_hdr_t *)ip->data)->src;
+                if (ipv4_addr_equal((ipv4_addr_t *) tcb->peer_addr, tmp_addr)) {
+                    break;
+                }
+            }
+        }
+#endif
+#if !defined(MODULE_GNRC_IPV6) && !defined(MODULE_GNRC_IPV4)
         /* Suppress compiler warnings if TCP is built without network layer */
         TCP_DEBUG_ERROR("Missing network layer. Add module to makefile.");
         (void) syn;

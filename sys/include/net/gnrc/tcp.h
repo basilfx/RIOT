@@ -24,11 +24,14 @@
 #include "net/gnrc/pkt.h"
 #include "net/gnrc/tcp/tcb.h"
 
-#ifdef SOCK_HAS_IPV6
+#if defined(SOCK_HAS_IPV6) || defined(SOCK_HAS_IPV4)
 #  include "net/sock.h"
 #else
 #  ifdef MODULE_GNRC_IPV6
 #    include "net/gnrc/ipv6.h"
+#  endif
+#  ifdef MODULE_GNRC_IPV4
+#    include "net/ipv4/addr.h"
 #  endif
 #endif
 
@@ -46,8 +49,8 @@ extern "C" {
 #define GNRC_TCP_NO_TIMEOUT (UINT32_MAX)
 #endif
 
-#ifdef SOCK_HAS_IPV6
-/* Reuse sock endpoint if sock is available and supporting IPv6. */
+#if defined(SOCK_HAS_IPV6) || defined(SOCK_HAS_IPV4)
+/* Reuse sock endpoint if sock is available and supporting IPv6 and/or IPv4. */
 typedef struct _sock_tl_ep gnrc_tcp_ep_t;
 
 #else
@@ -60,6 +63,9 @@ typedef struct {
     union {
 #ifdef MODULE_GNRC_IPV6
         uint8_t ipv6[sizeof(ipv6_addr_t)]; /**< IPv6 address storage */
+#endif
+#ifdef MODULE_GNRC_IPV4
+        uint8_t ipv4[sizeof(ipv4_addr_t)]; /**< IPv4 address storage */
 #endif
         uint8_t dummy;                     /**< Enable build without network module */
     } addr;                                /**< IP address storage */
@@ -88,14 +94,21 @@ int gnrc_tcp_ep_init(gnrc_tcp_ep_t *ep, int family, const uint8_t *addr, size_t 
 
 /**
  * @brief Construct TCP connection endpoint from string.
- * @note This function expects @p str in the IPv6 "URL" notation.
- *       The following strings specify a valid endpoint:
+ * @note An IPv6 address is expected in the IPv6 "URL" notation (brackets
+ *       required, since IPv6 addresses themselves contain colons).
+ *       The following strings specify a valid IPv6 endpoint:
  *       - [fe80::0a00:27ff:fe9f:7a5b%5]:8080 (with Port and Interface)
  *       - [2001::0200:f8ff:fe21:67cf]:8080   (with Port)
  *       - [2001::0200:f8ff:fe21:67cf]        (addr only)
  *
+ *       An IPv4 address (only with module `gnrc_ipv4`) is expected plain,
+ *       without brackets and without an interface identifier (this
+ *       implementation has no IPv4 link-local scope):
+ *       - 192.168.0.1:8080                   (with Port)
+ *       - 192.168.0.1                        (addr only)
+ *
  * @param[in,out] ep    Endpoint to initialize.
- * @param[in]     str   String containing IPv6-Address to parse.
+ * @param[in]     str   String containing an IPv6 or IPv4 address to parse.
  *
  * @return   0 on success.
  * @return   -EINVAL if parsing of @p str failed.
