@@ -1,9 +1,7 @@
 /*
- * Copyright (C) 2018 Freie Universität Berlin
- *
- * This file is subject to the terms and conditions of the GNU Lesser
- * General Public License v2.1. See the file LICENSE in the top level
- * directory for more details.
+ * SPDX-FileCopyrightText: 2018 Freie Universität Berlin
+ * SPDX-FileCopyrightText: 2026 Bas Stottelaar <basstottelaar@gmail.com>
+ * SPDX-License-Identifier: LGPL-2.1-only
  */
 
 /**
@@ -11,15 +9,21 @@
  *
  * @file
  * @author  Martine Lenders <m.lenders@fu-berlin.de>
+ * @author  Bas Stottelaar <basstottelaar@gmail.com>
  *
  * This implementation oriented itself on the [version by Mike
  * Muuss](http://ftp.arl.army.mil/~mike/ping.html) which was published under
  * public domain. The state-handling and duplicate detection was inspired by the
  * ping version of [inetutils](://www.gnu.org/software/inetutils/), which was
  * published under GPLv3
+ *
+ * The command supports both ICMPv6 and ICMPv4, so the address family is
+ * derived from the host argument at runtime. If both protocols are
+ * available, IPv6 is tried first and IPv4 is used as a fallback, mirroring
+ * the address family detection of the ifconfig shell command.
  */
 
-#ifdef MODULE_GNRC_ICMPV6
+#if defined(MODULE_GNRC_ICMPV6) || defined(MODULE_GNRC_ICMPV4)
 #include <limits.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -29,9 +33,6 @@
 #include "byteorder.h"
 #include "msg.h"
 #include "net/gnrc.h"
-#include "net/gnrc/icmpv6.h"
-#include "net/icmpv6.h"
-#include "net/ipv6.h"
 #include "net/utils.h"
 #include "sched.h"
 #include "shell.h"
@@ -39,6 +40,17 @@
 #include "unaligned.h"
 #include "utlist.h"
 #include "ztimer.h"
+
+#ifdef MODULE_GNRC_ICMPV6
+#include "net/gnrc/icmpv6.h"
+#include "net/icmpv6.h"
+#include "net/ipv6.h"
+#endif
+#ifdef MODULE_GNRC_ICMPV4
+#include "net/gnrc/icmpv4.h"
+#include "net/icmpv4.h"
+#include "net/ipv4.h"
+#endif
 
 #ifdef MODULE_LUID
 #include "luid.h"
@@ -58,11 +70,25 @@
 #define DEFAULT_INTERVAL_USEC   (1U * US_PER_SEC)
 #define DEFAULT_TIMEOUT_USEC    (1U * US_PER_SEC)
 
+/* the generic ICMP header has the same layout and size for both protocols */
+#ifdef MODULE_GNRC_ICMPV6
+#define _ICMP_HDR_SIZE          sizeof(icmpv6_hdr_t)
+#else
+#define _ICMP_HDR_SIZE          sizeof(icmpv4_hdr_t)
+#endif
+
 typedef struct {
     gnrc_netreg_entry_t netreg;
     ztimer_t sched_timer;
     msg_t sched_msg;
-    ipv6_addr_t host;
+#ifdef MODULE_GNRC_ICMPV6
+    ipv6_addr_t host_v6;
+    gnrc_netif_t *netif;
+#endif
+#ifdef MODULE_GNRC_ICMPV4
+    ipv4_addr_t host_v4;
+#endif
+    bool is_ipv4;
     char *hostname;
     unsigned long num_sent, num_recv, num_rept;
     unsigned long long tsum;
@@ -72,7 +98,6 @@ typedef struct {
     BITFIELD(cktab, CKTAB_SIZE);
     uint32_t timeout;
     uint32_t interval;
-    gnrc_netif_t *netif;
     uint16_t id;
     uint8_t hoplimit;
 } _ping_data_t;
@@ -83,11 +108,10 @@ static void _pinger(_ping_data_t *data);
 static int _print_reply(gnrc_pktsnip_t *pkt, int corrupted, uint32_t rtt, void *ctx);
 static int _finish(_ping_data_t *data);
 
-static int _gnrc_icmpv6_ping(int argc, char **argv)
+static int _gnrc_icmp_ping(int argc, char **argv)
 {
     _ping_data_t data = {
-        .netreg = GNRC_NETREG_ENTRY_INIT_PID(ICMPV6_ECHO_REP,
-                                                 thread_getpid()),
+        .netreg = GNRC_NETREG_ENTRY_INIT_PID(0, thread_getpid()),
         .count = DEFAULT_COUNT,
         .tmin = UINT_MAX,
         .datalen = DEFAULT_DATALEN,
@@ -95,6 +119,7 @@ static int _gnrc_icmpv6_ping(int argc, char **argv)
         .interval = DEFAULT_INTERVAL_USEC,
         .id = DEFAULT_ID,
     };
+    gnrc_nettype_t nettype;
     int res;
 
     ztimer_acquire(ZTIMER_USEC);
@@ -102,7 +127,25 @@ static int _gnrc_icmpv6_ping(int argc, char **argv)
     if ((res = _configure(argc, argv, &data)) != 0) {
         goto ret;
     }
-    gnrc_netreg_register(GNRC_NETTYPE_ICMPV6, &data.netreg);
+
+#if defined(MODULE_GNRC_ICMPV6) && defined(MODULE_GNRC_ICMPV4)
+    if (data.is_ipv4) {
+        nettype = GNRC_NETTYPE_ICMPV4;
+        data.netreg.demux_ctx = ICMPV4_ECHO_REP;
+    }
+    else {
+        nettype = GNRC_NETTYPE_ICMPV6;
+        data.netreg.demux_ctx = ICMPV6_ECHO_REP;
+    }
+#elif defined(MODULE_GNRC_ICMPV4)
+    nettype = GNRC_NETTYPE_ICMPV4;
+    data.netreg.demux_ctx = ICMPV4_ECHO_REP;
+#else
+    nettype = GNRC_NETTYPE_ICMPV6;
+    data.netreg.demux_ctx = ICMPV6_ECHO_REP;
+#endif
+
+    gnrc_netreg_register(nettype, &data.netreg);
     _pinger(&data);
     do {
         msg_t msg;
@@ -110,8 +153,22 @@ static int _gnrc_icmpv6_ping(int argc, char **argv)
         msg_receive(&msg);
         switch (msg.type) {
             case GNRC_NETAPI_MSG_TYPE_RCV: {
+#if defined(MODULE_GNRC_ICMPV6) && defined(MODULE_GNRC_ICMPV4)
+                if (data.is_ipv4) {
+                    gnrc_icmpv4_echo_rsp_handle(msg.content.ptr, data.datalen,
+                                                _print_reply, &data);
+                }
+                else {
+                    gnrc_icmpv6_echo_rsp_handle(msg.content.ptr, data.datalen,
+                                                _print_reply, &data);
+                }
+#elif defined(MODULE_GNRC_ICMPV4)
+                gnrc_icmpv4_echo_rsp_handle(msg.content.ptr, data.datalen,
+                                            _print_reply, &data);
+#else
                 gnrc_icmpv6_echo_rsp_handle(msg.content.ptr, data.datalen,
                                             _print_reply, &data);
+#endif
                 gnrc_pktbuf_release(msg.content.ptr);
                 break;
             }
@@ -129,14 +186,14 @@ static int _gnrc_icmpv6_ping(int argc, char **argv)
 finish:
     ztimer_remove(ZTIMER_USEC, &data.sched_timer);
     res = _finish(&data);
-    gnrc_netreg_unregister(GNRC_NETTYPE_ICMPV6, &data.netreg);
+    gnrc_netreg_unregister(nettype, &data.netreg);
     while (msg_avail() > 0) {
         msg_t msg;
 
         /* remove all remaining messages (likely caused by duplicates) */
         if ((msg_try_receive(&msg) > 0) &&
             (msg.type == GNRC_NETAPI_MSG_TYPE_RCV) &&
-            (((gnrc_pktsnip_t *)msg.content.ptr)->type == GNRC_NETTYPE_ICMPV6)) {
+            (((gnrc_pktsnip_t *)msg.content.ptr)->type == nettype)) {
             gnrc_pktbuf_release(msg.content.ptr);
         }
         else {
@@ -149,23 +206,48 @@ ret:
     return res;
 }
 
-SHELL_COMMAND(ping, "Ping via ICMPv6", _gnrc_icmpv6_ping);
+SHELL_COMMAND(ping, "Ping via ICMPv6/ICMPv4", _gnrc_icmp_ping);
 
 static void _usage(char *cmdname)
 {
     printf("%s [-c <count>] [-h] [-i <ms interval>] [-s <packetsize>]\n",
            cmdname);
-    printf("     [-t hoplimit] [-W <ms timeout>] <host>[%%<interface>]\n");
+    printf("     [-t hoplimit/ttl] [-W <ms timeout>] <host>[%%<interface>]\n");
     printf("     count: number of pings (default: 3)\n");
     printf("     ms interval: wait interval milliseconds between sending "
               "(default: 1000)\"");
     printf("     packetsize: number of bytes in echo payload; must be >= 4 to "
               "measure round trip time (default: 4)\n");
-    printf("     hoplimit: Set the IP time to life/hoplimit "
+    printf("     hoplimit/ttl: Set the IP time to life/hoplimit "
               "(default: interface config)\n");
     printf("     ms timeout: Time to wait for a response in milliseconds "
               "(default: 1000). The option affects only timeout in absence "
               "of any responses, otherwise wait for two RTTs\n");
+    printf("     the %%<interface> zone identifier suffix is only used for "
+              "IPv6 link-local hosts\n");
+}
+
+/* resolve the host argument, trying IPv6 first (if available) and falling
+ * back to IPv4, and remember which family was resolved */
+static int _resolve(_ping_data_t *data, char *arg)
+{
+    int res = -1;
+
+#ifdef MODULE_GNRC_ICMPV6
+    res = netutils_get_ipv6(&data->host_v6, (netif_t **)&data->netif, arg);
+    if (res == 0) {
+        data->is_ipv4 = false;
+        return 0;
+    }
+#endif
+#ifdef MODULE_GNRC_ICMPV4
+    res = netutils_get_ipv4(&data->host_v4, arg);
+    if (res == 0) {
+        data->is_ipv4 = true;
+        return 0;
+    }
+#endif
+    return res;
 }
 
 static int _configure(int argc, char **argv, _ping_data_t *data)
@@ -181,7 +263,7 @@ static int _configure(int argc, char **argv, _ping_data_t *data)
 
             data->hostname = arg;
 
-            res = netutils_get_ipv6(&data->host, (netif_t **)&data->netif, arg);
+            res = _resolve(data, arg);
             if (res) {
                 printf("can't resolve %s\n", arg);
                 return res;
@@ -211,7 +293,7 @@ static int _configure(int argc, char **argv, _ping_data_t *data)
                     if ((++i) < argc) {
                         value = atoi(argv[i]);
 
-                        if ((value < 0) || ((unsigned)value > (UINT16_MAX - sizeof(icmpv6_hdr_t)))) {
+                        if ((value < 0) || ((unsigned)value > (UINT16_MAX - _ICMP_HDR_SIZE))) {
                             printf("ping size should be in range 0-65527.\n");
                             return -1;
                         }
@@ -279,8 +361,22 @@ static void _pinger(_ping_data_t *data)
                    thread_getpid());
     bf_unset(data->cktab, (size_t)data->num_sent % CKTAB_SIZE);
 
-    res = gnrc_icmpv6_echo_send(data->netif, &data->host, data->id,
+#if defined(MODULE_GNRC_ICMPV6) && defined(MODULE_GNRC_ICMPV4)
+    if (data->is_ipv4) {
+        res = gnrc_icmpv4_echo_send(&data->host_v4, data->id, data->num_sent++,
+                                    data->hoplimit, data->datalen);
+    }
+    else {
+        res = gnrc_icmpv6_echo_send(data->netif, &data->host_v6, data->id,
+                                    data->num_sent++, data->hoplimit, data->datalen);
+    }
+#elif defined(MODULE_GNRC_ICMPV4)
+    res = gnrc_icmpv4_echo_send(&data->host_v4, data->id, data->num_sent++,
+                                data->hoplimit, data->datalen);
+#else
+    res = gnrc_icmpv6_echo_send(data->netif, &data->host_v6, data->id,
                                 data->num_sent++, data->hoplimit, data->datalen);
+#endif
     switch (-res) {
     case 0:
         break;
@@ -293,9 +389,12 @@ static void _pinger(_ping_data_t *data)
     }
 }
 
-static int _print_reply(gnrc_pktsnip_t *pkt, int corrupted, uint32_t triptime, void *ctx)
+#ifdef MODULE_GNRC_ICMPV6
+/* extract the ICMPv6 echo reply fields needed by _print_reply(), and print
+ * the leading "bytes from ..." line */
+static int _print_reply_v6(_ping_data_t *data, gnrc_pktsnip_t *pkt,
+                           int16_t *truncated, uint16_t *recv_seq)
 {
-    _ping_data_t *data = ctx;
     gnrc_pktsnip_t *netif = gnrc_pktsnip_search_type(pkt, GNRC_NETTYPE_NETIF);
     gnrc_pktsnip_t *ipv6 = gnrc_pktsnip_search_type(pkt, GNRC_NETTYPE_IPV6);
     gnrc_pktsnip_t *icmpv6 = gnrc_pktsnip_search_type(pkt, GNRC_NETTYPE_ICMPV6);
@@ -306,48 +405,119 @@ static int _print_reply(gnrc_pktsnip_t *pkt, int corrupted, uint32_t triptime, v
 
     ipv6_hdr_t *ipv6_hdr = ipv6->data;
     icmpv6_echo_t *icmpv6_hdr = icmpv6->data;
-
     kernel_pid_t if_pid = KERNEL_PID_UNDEF;
-    int16_t rssi = GNRC_NETIF_HDR_NO_RSSI;
-    int16_t truncated;
 
     if (netif) {
         gnrc_netif_hdr_t *netif_hdr = netif->data;
         if_pid = netif_hdr->if_pid;
-        rssi = netif_hdr->rssi;
     }
 
     /* check if payload size matches expectation */
-    truncated = (data->datalen + sizeof(icmpv6_echo_t)) - icmpv6->size;
+    *truncated = (data->datalen + sizeof(icmpv6_echo_t)) - icmpv6->size;
 
     if (icmpv6_hdr->type != ICMPV6_ECHO_REP) {
         return -EINVAL;
     }
 
     char from_str[IPV6_ADDR_MAX_STR_LEN];
-    const char *dupmsg = " (DUP!)";
-    uint16_t recv_seq;
 
     /* not our ping */
     if (byteorder_ntohs(icmpv6_hdr->id) != data->id) {
         return -EINVAL;
     }
-    if (!ipv6_addr_is_multicast(&data->host) &&
-        !ipv6_addr_equal(&ipv6_hdr->src, &data->host)) {
+    if (!ipv6_addr_is_multicast(&data->host_v6) &&
+        !ipv6_addr_equal(&ipv6_hdr->src, &data->host_v6)) {
         return -EINVAL;
     }
-    recv_seq = byteorder_ntohs(icmpv6_hdr->seq);
+    *recv_seq = byteorder_ntohs(icmpv6_hdr->seq);
     ipv6_addr_to_str(&from_str[0], &ipv6_hdr->src, sizeof(from_str));
 
     if (gnrc_netif_highlander() || (if_pid == KERNEL_PID_UNDEF) ||
         !ipv6_addr_is_link_local(&ipv6_hdr->src)) {
         printf("%" PRIuSIZE " bytes from %s: icmp_seq=%u ttl=%u",
-               icmpv6->size, from_str, recv_seq, ipv6_hdr->hl);
+               icmpv6->size, from_str, *recv_seq, ipv6_hdr->hl);
     } else {
         printf("%" PRIuSIZE " bytes from %s%%%u: icmp_seq=%u ttl=%u",
-               icmpv6->size, from_str, if_pid, recv_seq, ipv6_hdr->hl);
+               icmpv6->size, from_str, if_pid, *recv_seq, ipv6_hdr->hl);
 
     }
+
+    return 0;
+}
+#endif /* MODULE_GNRC_ICMPV6 */
+
+#ifdef MODULE_GNRC_ICMPV4
+/* extract the ICMPv4 echo reply fields needed by _print_reply(), and print
+ * the leading "bytes from ..." line */
+static int _print_reply_v4(_ping_data_t *data, gnrc_pktsnip_t *pkt,
+                           int16_t *truncated, uint16_t *recv_seq)
+{
+    gnrc_pktsnip_t *ipv4 = gnrc_pktsnip_search_type(pkt, GNRC_NETTYPE_IPV4);
+    gnrc_pktsnip_t *icmpv4 = gnrc_pktsnip_search_type(pkt, GNRC_NETTYPE_ICMPV4);
+
+    if (!ipv4 || !icmpv4) {
+        return -EINVAL;
+    }
+
+    ipv4_hdr_t *ipv4_hdr = ipv4->data;
+    icmpv4_echo_t *icmpv4_hdr = icmpv4->data;
+
+    /* check if payload size matches expectation */
+    *truncated = (data->datalen + sizeof(icmpv4_echo_t)) - icmpv4->size;
+
+    if (icmpv4_hdr->type != ICMPV4_ECHO_REP) {
+        return -EINVAL;
+    }
+
+    char from_str[IPV4_ADDR_MAX_STR_LEN];
+
+    /* not our ping */
+    if (byteorder_ntohs(icmpv4_hdr->id) != data->id) {
+        return -EINVAL;
+    }
+    if (!ipv4_addr_is_multicast(&data->host_v4) &&
+        (data->host_v4.u32.u32 != 0xffffffffU) &&
+        !ipv4_addr_equal(&ipv4_hdr->src, &data->host_v4)) {
+        return -EINVAL;
+    }
+    *recv_seq = byteorder_ntohs(icmpv4_hdr->seq);
+    ipv4_addr_to_str(&from_str[0], &ipv4_hdr->src, sizeof(from_str));
+
+    printf("%" PRIuSIZE " bytes from %s: icmp_seq=%u ttl=%u",
+           icmpv4->size, from_str, *recv_seq, ipv4_hdr->ttl);
+
+    return 0;
+}
+#endif /* MODULE_GNRC_ICMPV4 */
+
+static int _print_reply(gnrc_pktsnip_t *pkt, int corrupted, uint32_t triptime, void *ctx)
+{
+    _ping_data_t *data = ctx;
+    gnrc_pktsnip_t *netif = gnrc_pktsnip_search_type(pkt, GNRC_NETTYPE_NETIF);
+    int16_t rssi = GNRC_NETIF_HDR_NO_RSSI;
+    int16_t truncated = 0;
+    uint16_t recv_seq = 0;
+    const char *dupmsg = " (DUP!)";
+    int res;
+
+    if (netif) {
+        gnrc_netif_hdr_t *netif_hdr = netif->data;
+        rssi = netif_hdr->rssi;
+    }
+
+#if defined(MODULE_GNRC_ICMPV6) && defined(MODULE_GNRC_ICMPV4)
+    res = data->is_ipv4 ? _print_reply_v4(data, pkt, &truncated, &recv_seq)
+                        : _print_reply_v6(data, pkt, &truncated, &recv_seq);
+#elif defined(MODULE_GNRC_ICMPV4)
+    res = _print_reply_v4(data, pkt, &truncated, &recv_seq);
+#else
+    res = _print_reply_v6(data, pkt, &truncated, &recv_seq);
+#endif
+
+    if (res != 0) {
+        return res;
+    }
+
     /* check if payload size matches */
     if (truncated) {
         printf(" truncated by %d byte", truncated);
@@ -416,6 +586,6 @@ static int _finish(_ping_data_t *data)
     return (nrecv == 0);
 }
 
-#endif /* MODULE_GNRC_ICMPV6 */
+#endif /* defined(MODULE_GNRC_ICMPV6) || defined(MODULE_GNRC_ICMPV4) */
 
 /** @} */

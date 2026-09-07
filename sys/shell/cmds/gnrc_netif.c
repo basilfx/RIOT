@@ -21,6 +21,7 @@
 #include <assert.h>
 #include <ctype.h>
 #include <limits.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -28,6 +29,7 @@
 #include "net/gnrc.h"
 #include "net/gnrc/netif.h"
 #include "net/gnrc/netif/hdr.h"
+#include "net/ipv4/addr.h"
 #include "net/ipv6/addr.h"
 #include "net/l2util.h"
 #include "net/lora.h"
@@ -279,12 +281,12 @@ static void _flag_usage(char *cmd_name)
 static void _add_usage(char *cmd_name)
 {
     printf("usage: %s <if_id> add [anycast|multicast|unicast] "
-           "<ipv6_addr>[/prefix_len]\n", cmd_name);
+           "<ipv6_addr>[/prefix_len]|<ipv4_addr>[/prefix_len]\n", cmd_name);
 }
 
 static void _del_usage(char *cmd_name)
 {
-    printf("usage: %s <if_id> del <ipv6_addr>\n",
+    printf("usage: %s <if_id> del <ipv6_addr>|<ipv4_addr>\n",
            cmd_name);
 }
 
@@ -639,11 +641,48 @@ static void _netif_list_groups(ipv6_addr_t *addr)
 }
 #endif
 
+#ifdef MODULE_GNRC_NETIF_IPV4
+static void _netif_list_ipv4(ipv4_addr_t *addr, uint8_t prefix_len, uint8_t flags)
+{
+    char addr_str[IPV4_ADDR_MAX_STR_LEN];
+
+    printf("inet addr: ");
+    ipv4_addr_to_str(addr_str, addr, sizeof(addr_str));
+    printf("%s/%u", addr_str, (unsigned)prefix_len);
+    switch (flags & GNRC_NETIF_IPV4_ADDRS_FLAGS_STATE_MASK) {
+    case GNRC_NETIF_IPV4_ADDRS_FLAGS_STATE_DHCP:
+        printf("  DHCP");
+        break;
+    case GNRC_NETIF_IPV4_ADDRS_FLAGS_STATE_MANUAL:
+        printf("  MANUAL");
+        break;
+    default:
+        printf("  UNK");
+        break;
+    }
+    _newline(0U, _LINE_THRESHOLD);
+}
+
+static void _netif_list_ipv4_groups(ipv4_addr_t *addr)
+{
+    if (ipv4_addr_is_multicast(addr)) {
+        char addr_str[IPV4_ADDR_MAX_STR_LEN];
+        ipv4_addr_to_str(addr_str, addr, sizeof(addr_str));
+        printf("inet group: %s", addr_str);
+    }
+    _newline(0U, _LINE_THRESHOLD);
+}
+#endif  /* MODULE_GNRC_NETIF_IPV4 */
+
 static void _netif_list(netif_t *iface)
 {
 #ifdef MODULE_IPV6
     ipv6_addr_t ipv6_addrs[CONFIG_GNRC_NETIF_IPV6_ADDRS_NUMOF];
     ipv6_addr_t ipv6_groups[GNRC_NETIF_IPV6_GROUPS_NUMOF];
+#endif
+#ifdef MODULE_GNRC_NETIF_IPV4
+    ipv4_addr_t ipv4_addrs[CONFIG_GNRC_NETIF_IPV4_ADDRS_NUMOF];
+    ipv4_addr_t ipv4_groups[CONFIG_GNRC_NETIF_IPV4_GROUPS_NUMOF];
 #endif
     uint8_t hwaddr[GNRC_NETIF_L2ADDR_MAXLEN];
     uint32_t u32;
@@ -899,6 +938,13 @@ static void _netif_list(netif_t *iface)
                                    line_thresh);
 #endif
 #endif
+#ifdef MODULE_GNRC_NETIF_IPV4
+    res = netif_get_opt(iface, NETOPT_MAX_PDU_SIZE, GNRC_NETTYPE_IPV4, &u16, sizeof(u16));
+    if (res > 0) {
+        printf("MTU4:%" PRIu16 "  ", u16);
+        line_thresh++;
+    }
+#endif
     res = netif_get_opt(iface, NETOPT_SRC_LEN, 0, &u16, sizeof(u16));
     /* XXX divide options and flags by at least two spaces before this line! */
     if (res >= 0) {
@@ -933,6 +979,34 @@ static void _netif_list(netif_t *iface)
         }
     }
 #endif
+#ifdef MODULE_GNRC_NETIF_IPV4
+    res = netif_get_opt(iface, NETOPT_IPV4_ADDR, 0, ipv4_addrs,
+                        sizeof(ipv4_addrs));
+    if (res >= 0) {
+        uint8_t ipv4_addrs_flags[CONFIG_GNRC_NETIF_IPV4_ADDRS_NUMOF];
+        uint8_t ipv4_prefix_lens[CONFIG_GNRC_NETIF_IPV4_ADDRS_NUMOF];
+
+        memset(ipv4_addrs_flags, 0, sizeof(ipv4_addrs_flags));
+        memset(ipv4_prefix_lens, 0, sizeof(ipv4_prefix_lens));
+        /* assume it to succeed (otherwise arrays will stay 0) */
+        netif_get_opt(iface, NETOPT_IPV4_ADDR_FLAGS, 0, ipv4_addrs_flags,
+                      sizeof(ipv4_addrs_flags));
+        netif_get_opt(iface, NETOPT_IPV4_PREFIX_LEN, 0, ipv4_prefix_lens,
+                      sizeof(ipv4_prefix_lens));
+        /* yes, the res of NETOPT_IPV4_ADDR is meant to be here ;-) */
+        for (unsigned i = 0; i < (res / sizeof(ipv4_addr_t)); i++) {
+            _netif_list_ipv4(&ipv4_addrs[i], ipv4_prefix_lens[i],
+                            ipv4_addrs_flags[i]);
+        }
+    }
+    res = netif_get_opt(iface, NETOPT_IPV4_GROUP, 0, ipv4_groups,
+                        sizeof(ipv4_groups));
+    if (res >= 0) {
+        for (unsigned i = 0; i < (res / sizeof(ipv4_addr_t)); i++) {
+            _netif_list_ipv4_groups(&ipv4_groups[i]);
+        }
+    }
+#endif  /* MODULE_GNRC_NETIF_IPV4 */
 
 #ifdef MODULE_L2FILTER
     l2filter_t *filter = NULL;
@@ -1677,13 +1751,13 @@ static int _netif_flag(char *cmd, netif_t *iface, char *flag)
     return 1;
 }
 
-#ifdef MODULE_GNRC_IPV6
-static uint8_t _get_prefix_len(char *addr)
+#if defined(MODULE_GNRC_IPV6) || defined(MODULE_GNRC_NETIF_IPV4)
+static uint8_t _get_prefix_len(char *addr, uint8_t default_len)
 {
-    int prefix_len = ipv6_addr_split_int(addr, '/', _IPV6_DEFAULT_PREFIX_LEN);
+    int prefix_len = ipv6_addr_split_int(addr, '/', default_len);
 
     if (prefix_len < 1) {
-        prefix_len = _IPV6_DEFAULT_PREFIX_LEN;
+        prefix_len = default_len;
     }
 
     return prefix_len;
@@ -1708,68 +1782,110 @@ static int _netif_link(netif_t *iface, netopt_enable_t en)
 
 static int _netif_add(char *cmd_name, netif_t *iface, int argc, char **argv)
 {
-#ifdef MODULE_GNRC_IPV6
-    enum {
-        _UNICAST = 0,
-        _ANYCAST
-    } type = _UNICAST;
+#if defined(MODULE_GNRC_IPV6) || defined(MODULE_GNRC_NETIF_IPV4)
     char *addr_str = argv[0];
-    ipv6_addr_t addr;
-    uint16_t flags = GNRC_NETIF_IPV6_ADDRS_FLAGS_STATE_VALID;
+    bool had_prefix_len;
     uint8_t prefix_len;
+#ifdef MODULE_GNRC_IPV6
+    bool anycast = false;
+#endif
 
     if (argc > 1) {
-        if (strcmp(argv[0], "anycast") == 0) {
-            type = _ANYCAST;
+        if (strcmp(argv[0], "unicast") == 0) {
             addr_str = argv[1];
         }
-        else if (strcmp(argv[0], "unicast") == 0) {
-            /* type already set to unicast */
+#ifdef MODULE_GNRC_IPV6
+        else if (strcmp(argv[0], "anycast") == 0) {
+            anycast = true;
             addr_str = argv[1];
         }
+#endif
         else {
             _add_usage(cmd_name);
             return 1;
         }
     }
 
-    prefix_len = _get_prefix_len(addr_str);
+    /* strip and remember any "/prefix_len" suffix *before* parsing the
+     * address itself: ipv6_addr_from_str()/ipv4_addr_from_str() do not
+     * tolerate trailing characters */
+    had_prefix_len = (strchr(addr_str, '/') != NULL);
+    prefix_len = _get_prefix_len(addr_str, 0);
 
-    if (ipv6_addr_from_str(&addr, addr_str) == NULL) {
-        printf("error: unable to parse IPv6 address.\n");
-        return 1;
-    }
+#ifdef MODULE_GNRC_IPV6
+    {
+        ipv6_addr_t addr;
 
-    if (ipv6_addr_is_multicast(&addr)) {
-        if (netif_set_opt(iface, NETOPT_IPV6_GROUP, 0, &addr,
-                          sizeof(addr)) < 0) {
-            printf("error: unable to join IPv6 multicast group\n");
-            return 1;
+        if (ipv6_addr_from_str(&addr, addr_str) != NULL) {
+            uint16_t flags = GNRC_NETIF_IPV6_ADDRS_FLAGS_STATE_VALID;
+            uint8_t pfx = had_prefix_len ? prefix_len : _IPV6_DEFAULT_PREFIX_LEN;
+
+            if (ipv6_addr_is_multicast(&addr)) {
+                if (netif_set_opt(iface, NETOPT_IPV6_GROUP, 0, &addr,
+                                  sizeof(addr)) < 0) {
+                    printf("error: unable to join IPv6 multicast group\n");
+                    return 1;
+                }
+            }
+            else {
+                if (anycast) {
+                    flags |= GNRC_NETIF_IPV6_ADDRS_FLAGS_ANYCAST;
+                }
+                flags |= (pfx << 8U);
+                if (netif_set_opt(iface, NETOPT_IPV6_ADDR, flags, &addr,
+                                  sizeof(addr)) < 0) {
+                    printf("error: unable to add IPv6 address\n");
+                    return 1;
+                }
+            }
+
+            printf("success: added %s/%d to interface ", addr_str, pfx);
+            _print_iface_name(iface);
+            printf("\n");
+            return 0;
         }
     }
-    else {
-        if (type == _ANYCAST) {
-            flags |= GNRC_NETIF_IPV6_ADDRS_FLAGS_ANYCAST;
-        }
-        flags |= (prefix_len << 8U);
-        if (netif_set_opt(iface, NETOPT_IPV6_ADDR, flags, &addr,
-                          sizeof(addr)) < 0) {
-            printf("error: unable to add IPv6 address\n");
-            return 1;
+#endif  /* MODULE_GNRC_IPV6 */
+#ifdef MODULE_GNRC_NETIF_IPV4
+    {
+        ipv4_addr_t addr;
+
+        if (ipv4_addr_from_str(&addr, addr_str) != NULL) {
+            uint8_t pfx = had_prefix_len ? prefix_len : 32U;
+
+            if (ipv4_addr_is_multicast(&addr)) {
+                if (netif_set_opt(iface, NETOPT_IPV4_GROUP, 0, &addr,
+                                  sizeof(addr)) < 0) {
+                    printf("error: unable to join IPv4 multicast group\n");
+                    return 1;
+                }
+            }
+            else {
+                uint16_t flags = GNRC_NETIF_IPV4_ADDRS_FLAGS_STATE_MANUAL |
+                                 (pfx << 8U);
+
+                if (netif_set_opt(iface, NETOPT_IPV4_ADDR, flags, &addr,
+                                  sizeof(addr)) < 0) {
+                    printf("error: unable to add IPv4 address\n");
+                    return 1;
+                }
+            }
+
+            printf("success: added %s/%d to interface ", addr_str, pfx);
+            _print_iface_name(iface);
+            printf("\n");
+            return 0;
         }
     }
-
-    printf("success: added %s/%d to interface ", addr_str, prefix_len);
-    _print_iface_name(iface);
-    printf("\n");
-
-    return 0;
+#endif  /* MODULE_GNRC_NETIF_IPV4 */
+    printf("error: unable to parse address.\n");
+    return 1;
 #else
     (void)cmd_name;
     (void)iface;
     (void)argc;
     (void)argv;
-    printf("error: GNRC_IPV6 module not enabled.\n");
+    printf("error: neither GNRC_IPV6 nor GNRC_NETIF_IPV4 module enabled.\n");
 
     return 1;
 #endif
@@ -1778,39 +1894,61 @@ static int _netif_add(char *cmd_name, netif_t *iface, int argc, char **argv)
 static int _netif_del(netif_t *iface, char *addr_str)
 {
 #ifdef MODULE_GNRC_IPV6
-    ipv6_addr_t addr;
+    {
+        ipv6_addr_t addr;
 
-    if (ipv6_addr_from_str(&addr, addr_str) == NULL) {
-        printf("error: unable to parse IPv6 address.\n");
-        return 1;
-    }
+        if (ipv6_addr_from_str(&addr, addr_str) != NULL) {
+            if (ipv6_addr_is_multicast(&addr)) {
+                if (netif_set_opt(iface, NETOPT_IPV6_GROUP_LEAVE, 0, &addr,
+                                  sizeof(addr)) < 0) {
+                    printf("error: unable to leave IPv6 multicast group\n");
+                    return 1;
+                }
+            }
+            else {
+                if (netif_set_opt(iface, NETOPT_IPV6_ADDR_REMOVE, 0, &addr,
+                                  sizeof(addr)) < 0) {
+                    printf("error: unable to remove IPv6 address\n");
+                    return 1;
+                }
+            }
 
-    if (ipv6_addr_is_multicast(&addr)) {
-        if (netif_set_opt(iface, NETOPT_IPV6_GROUP_LEAVE, 0, &addr,
-                          sizeof(addr)) < 0) {
-            printf("error: unable to leave IPv6 multicast group\n");
-            return 1;
+            printf("success: removed %s from interface ", addr_str);
+            _print_iface_name(iface);
+            printf("\n");
+            return 0;
         }
     }
-    else {
-        if (netif_set_opt(iface, NETOPT_IPV6_ADDR_REMOVE, 0, &addr,
-                          sizeof(addr)) < 0) {
-            printf("error: unable to remove IPv6 address\n");
-            return 1;
+#endif  /* MODULE_GNRC_IPV6 */
+#ifdef MODULE_GNRC_NETIF_IPV4
+    {
+        ipv4_addr_t addr;
+
+        if (ipv4_addr_from_str(&addr, addr_str) != NULL) {
+            if (ipv4_addr_is_multicast(&addr)) {
+                if (netif_set_opt(iface, NETOPT_IPV4_GROUP_LEAVE, 0, &addr,
+                                  sizeof(addr)) < 0) {
+                    printf("error: unable to leave IPv4 multicast group\n");
+                    return 1;
+                }
+            }
+            else {
+                if (netif_set_opt(iface, NETOPT_IPV4_ADDR_REMOVE, 0, &addr,
+                                  sizeof(addr)) < 0) {
+                    printf("error: unable to remove IPv4 address\n");
+                    return 1;
+                }
+            }
+
+            printf("success: removed %s from interface ", addr_str);
+            _print_iface_name(iface);
+            printf("\n");
+            return 0;
         }
     }
-
-    printf("success: removed %s to interface ", addr_str);
-    _print_iface_name(iface);
-    printf("\n");
-
-    return 0;
-#else
-    (void)iface;
-    (void)addr_str;
-    printf("error: unable to delete IPv6 address.\n");
+#endif  /* MODULE_GNRC_NETIF_IPV4 */
+    printf("error: unable to parse address.\n");
     return 1;
-#endif
 }
 
 /* shell commands */

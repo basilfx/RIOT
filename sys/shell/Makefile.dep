@@ -48,8 +48,8 @@ ifneq (,$(filter shell_cmds_default,$(USEMODULE)))
   ifneq (,$(filter gnrc_ipv6_blacklist,$(USEMODULE)))
     USEMODULE += shell_cmd_blacklist
   endif
-  ifneq (,$(filter gnrc_icmpv6_echo,$(USEMODULE)))
-    USEMODULE += shell_cmd_gnrc_icmpv6_echo
+  ifneq (,$(filter gnrc_icmpv4_echo gnrc_icmpv6_echo,$(USEMODULE)))
+    USEMODULE += shell_cmd_gnrc_icmp_echo
   endif
   ifneq (,$(filter gnrc_netif,$(USEMODULE)))
     USEMODULE += shell_cmd_gnrc_netif
@@ -163,8 +163,7 @@ ifneq (,$(filter shell_cmd_fib,$(USEMODULE)))
   USEMODULE += fib
   USEMODULE += posix_inet
 endif
-ifneq (,$(filter shell_cmd_gnrc_icmpv6_echo,$(USEMODULE)))
-  USEMODULE += gnrc_icmpv6_echo
+ifneq (,$(filter shell_cmd_gnrc_icmp_echo,$(USEMODULE)))
   USEMODULE += netutils
   USEMODULE += ztimer_usec
 endif
