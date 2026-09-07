@@ -343,6 +343,12 @@ extern "C" {
  */
 #define AUTO_INIT_PRIO_MOD_TEST_UTILS_INTERACTIVE_SYNC  1460
 #endif
+#ifndef AUTO_INIT_PRIO_MOD_DHCPV4_CLIENT
+/**
+ * @brief   DHCPv4 client priority
+ */
+#define AUTO_INIT_PRIO_MOD_DHCPV4_CLIENT                1479
+#endif
 #ifndef AUTO_INIT_PRIO_MOD_DHCPV6_CLIENT
 /**
  * @brief   DHCPv6 client priority

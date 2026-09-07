@@ -44,6 +44,9 @@ endif
 ifneq (,$(filter devfs,$(USEMODULE)))
   DIRS += fs/devfs
 endif
+ifneq (,$(filter dhcpv4,$(USEMODULE)))
+  DIRS += net/application_layer/dhcpv4
+endif
 ifneq (,$(filter dhcpv6,$(USEMODULE)))
   DIRS += net/application_layer/dhcpv6
 endif

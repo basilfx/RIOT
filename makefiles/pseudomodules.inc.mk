@@ -108,6 +108,7 @@ PSEUDOMODULES += crypto_aes_unroll
 
 PSEUDOMODULES += dbgpin
 PSEUDOMODULES += devfs_%
+PSEUDOMODULES += dhcpv4_%
 PSEUDOMODULES += dhcpv6_%
 PSEUDOMODULES += dhcpv6_client_dns
 PSEUDOMODULES += dhcpv6_client_ia_na

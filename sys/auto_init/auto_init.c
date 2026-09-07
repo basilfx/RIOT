@@ -300,6 +300,11 @@ extern void test_utils_interactive_sync(void);
 AUTO_INIT(test_utils_interactive_sync,
           AUTO_INIT_PRIO_MOD_TEST_UTILS_INTERACTIVE_SYNC);
 #endif
+#if IS_USED(MODULE_AUTO_INIT_DHCPV4_CLIENT)
+extern void dhcpv4_client_auto_init(void);
+AUTO_INIT(dhcpv4_client_auto_init,
+          AUTO_INIT_PRIO_MOD_DHCPV4_CLIENT);
+#endif
 #if IS_USED(MODULE_AUTO_INIT_DHCPV6_CLIENT)
 extern void dhcpv6_client_auto_init(void);
 AUTO_INIT(dhcpv6_client_auto_init,

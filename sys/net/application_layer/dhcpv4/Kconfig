@@ -1,0 +1,39 @@
+# Copyright (c) 2026 Bas Stottelaar
+#
+# This file is subject to the terms and conditions of the GNU Lesser
+# General Public License v2.1. See the file LICENSE in the top level
+# directory for more details.
+#
+
+menu "DHCPv4"
+    depends on USEMODULE_DHCPV4
+
+menu "DHCPv4 client"
+    depends on USEMODULE_DHCPV4_CLIENT
+
+config DHCPV4_CLIENT_ROUTE_MAX
+    int "Maximum number of classless static routes applied from a lease"
+    default 2
+
+config DHCPV4_CLIENT_INIT_DELAY_MS
+    int "Maximum random delay before the first DISCOVER (in ms)"
+    default 2000
+
+config DHCPV4_CLIENT_INITIAL_RT_MS
+    int "Initial retransmission timeout (in ms)"
+    default 4000
+
+config DHCPV4_CLIENT_MAX_RT_MS
+    int "Upper bound the retransmission timeout is doubled to (in ms)"
+    default 64000
+
+config DHCPV4_CLIENT_REQUEST_MAX_RC
+    int "Maximum number of REQUEST retransmissions before giving up on the offer"
+    default 4
+
+config DHCPV4_CLIENT_DECLINE_DELAY_MS
+    int "Delay before restarting after a DECLINE (in ms)"
+    default 10000
+
+endmenu # DHCPv4 client
+endmenu # DHCPv4
