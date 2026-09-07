@@ -234,4 +234,31 @@ int gnrc_netif_ipv6_iid_from_addr(const gnrc_netif_t *netif,
 
 #endif /* IS_USED(MODULE_GNRC_NETIF_IPV6) */
 
+#if IS_USED(MODULE_GNRC_NETIF_IPV4)
+void gnrc_netif_ipv4_init_mtu(gnrc_netif_t *netif)
+{
+    netdev_t *dev = netif->dev;
+    int res;
+    uint16_t tmp;
+
+    switch (netif->device_type) {
+#ifdef MODULE_NETDEV_ETH
+        case NETDEV_TYPE_ETHERNET:
+            netif->ipv4.mtu = ETHERNET_DATA_LEN;
+            break;
+#endif
+        default:
+            res = dev->driver->get(dev, NETOPT_MAX_PDU_SIZE, &tmp, sizeof(tmp));
+            if (res < 0) {
+                /* assume maximum possible transition unit */
+                netif->ipv4.mtu = UINT16_MAX;
+            }
+            else {
+                netif->ipv4.mtu = tmp;
+            }
+            break;
+    }
+}
+#endif  /* IS_USED(MODULE_GNRC_NETIF_IPV4) */
+
 /** @} */

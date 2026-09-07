@@ -182,6 +182,7 @@ PSEUDOMODULES += gnrc_neterr
 PSEUDOMODULES += gnrc_netif_6lo
 PSEUDOMODULES += gnrc_netif_bus
 PSEUDOMODULES += gnrc_netif_dedup
+PSEUDOMODULES += gnrc_netif_ipv4
 PSEUDOMODULES += gnrc_netif_ipv6
 PSEUDOMODULES += gnrc_netif_single
 PSEUDOMODULES += gnrc_netif_timestamp

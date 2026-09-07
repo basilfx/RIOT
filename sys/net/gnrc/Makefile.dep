@@ -144,6 +144,11 @@ ifneq (,$(filter gnrc_netif_bus,$(USEMODULE)))
   USEMODULE += core_msg_bus
 endif
 
+ifneq (,$(filter gnrc_netif_ipv4,$(USEMODULE)))
+  USEMODULE += gnrc_nettype_ipv4
+  USEMODULE += ipv4_addr
+endif
+
 ifneq (,$(filter netdev_eth slipdev, $(USEMODULE)))
   ifeq (,$(filter gnrc_sixloenc, $(USEMODULE)))
     ifneq (,$(filter gnrc_ipv6, $(USEMODULE)))

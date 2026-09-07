@@ -127,6 +127,24 @@ extern "C" {
 #endif
 
 /**
+ * @brief   Maximum number of unicast addresses per interface
+ *
+ * Default: 1 (a single manually configured or DHCP-assigned address)
+ */
+#ifndef CONFIG_GNRC_NETIF_IPV4_ADDRS_NUMOF
+#define CONFIG_GNRC_NETIF_IPV4_ADDRS_NUMOF    (1)
+#endif
+
+/**
+ * @brief   Maximum number of multicast groups per interface
+ *
+ * Default: 1 (reserved for the all-hosts group, 224.0.0.1)
+ */
+#ifndef CONFIG_GNRC_NETIF_IPV4_GROUPS_NUMOF
+#define CONFIG_GNRC_NETIF_IPV4_GROUPS_NUMOF   (1)
+#endif
+
+/**
  * @brief   Maximum length of the link-layer address.
  *
  * The value for the maximum length of a link-layer address is dependent

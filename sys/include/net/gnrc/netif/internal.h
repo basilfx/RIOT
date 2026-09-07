@@ -1,5 +1,6 @@
 /*
  * SPDX-FileCopyrightText: 2017 Freie Universität Berlin
+ * SPDX-FileCopyrightText: 2026 Bas Stottelaar <basstottelaar@gmail.com>
  * SPDX-License-Identifier: LGPL-2.1-only
  */
 
@@ -300,6 +301,195 @@ static inline void gnrc_netif_ipv6_bus_post(gnrc_netif_t *netif, int type,
 #endif
 }
 #endif  /* IS_USED(MODULE_GNRC_NETIF_IPV6) || defined(DOXYGEN) */
+
+#if IS_USED(MODULE_GNRC_NETIF_IPV4) || DOXYGEN
+/**
+ * @brief   Adds an IPv4 address to the interface
+ *
+ * @pre `(netif != NULL) && (addr != NULL)`
+ * @pre @p addr is not multicast or the limited broadcast address
+ *      (255.255.255.255)
+ * @pre `(pfx_len > 0) && (pfx_len <= 32)`
+ *
+ * @param[in,out] netif the network interface. Must not be NULL.
+ * @param[in] addr      the address to add. If the address is already on the
+ *                      interface the function will return its index, but
+ *                      @p flags and @p pfx_len will be ignored. Must not be
+ *                      NULL or be a multicast or broadcast address.
+ * @param[in] pfx_len   length in bits of the prefix of @p addr
+ * @param[in] flags     initial [flags](@ref net_gnrc_netif_ipv4_addrs_flags)
+ *                      for the address.
+ *
+ * @note    Only available with module `gnrc_netif_ipv4`.
+ *
+ * @return  >= 0, index of @p addr on @p netif on success
+ * @return  -ENOMEM, when no space for new addresses is left on the interface
+ */
+int gnrc_netif_ipv4_addr_add_internal(gnrc_netif_t *netif,
+                                      const ipv4_addr_t *addr,
+                                      unsigned pfx_len, uint8_t flags);
+
+/**
+ * @brief   Removes an IPv4 address from the interface
+ *
+ * @pre `(netif != NULL) && (addr != NULL)`
+ *
+ * @param[in,out] netif the network interface
+ * @param[in] addr      the address to remove
+ *
+ * @note    Only available with module `gnrc_netif_ipv4`.
+ */
+void gnrc_netif_ipv4_addr_remove_internal(gnrc_netif_t *netif,
+                                          const ipv4_addr_t *addr);
+
+/**
+ * @brief   Returns the index of @p addr in gnrc_netif_ipv4_t::addrs of
+ *          @p netif
+ *
+ * @pre `(netif != NULL) && (addr != NULL)`
+ *
+ * Can be used to check if an address is assigned to an interface.
+ *
+ * @param[in] netif the network interface
+ * @param[in] addr  the address to check
+ *
+ * @note    Only available with module `gnrc_netif_ipv4`.
+ *
+ * @return  index of @p addr in gnrc_netif_ipv4_t::addrs of @p netif
+ * @return  -1, if @p addr isn't assigned to @p netif
+ */
+int gnrc_netif_ipv4_addr_idx(gnrc_netif_t *netif,
+                             const ipv4_addr_t *addr);
+
+/**
+ * @brief   Returns the index of an address in gnrc_netif_ipv4_t::addrs of
+ *          @p netif that matches @p addr best
+ *
+ * @pre `(netif != NULL) && (addr != NULL)`
+ *
+ * Can be used to check if a prefix is assigned to an interface.
+ *
+ * @param[in] netif     the network interface
+ * @param[in] addr      the prefix to match
+ *
+ * @note    Only available with module `gnrc_netif_ipv4`.
+ *
+ * @return  index of an address in gnrc_netif_ipv4_t::addrs of @p netif that
+ *          best matches @p addr.
+ * @return  -1, if no address on @p netif matches @p addr
+ */
+int gnrc_netif_ipv4_addr_match(gnrc_netif_t *netif,
+                               const ipv4_addr_t *addr);
+
+/**
+ * @brief   Gets an interface by an address (incl. multicast groups) assigned
+ *          to it.
+ *
+ * @pre `addr != NULL`
+ *
+ * @param[in] addr  an IPv4 address
+ *
+ * @return  The network interface that has @p addr assigned
+ * @return  NULL, if no interface has @p addr assigned
+ */
+gnrc_netif_t *gnrc_netif_get_by_ipv4_addr(const ipv4_addr_t *addr);
+
+/**
+ * @brief   Gets an interface by an address matching a given prefix best
+ *
+ * @param[in] prefix    an IPv4 address or prefix
+ *
+ * @return  The network interface that has an address assigned, that matches
+ *          @p prefix best
+ * @return  NULL, if there is no address on any interface that matches
+ *          @p prefix
+ */
+gnrc_netif_t *gnrc_netif_get_by_ipv4_prefix(const ipv4_addr_t *prefix);
+
+/**
+ * @brief   Joins interface to an IPv4 multicast group
+ *
+ * @pre `(netif != NULL) && (addr != NULL)`
+ * @pre @p addr is a multicast address
+ *
+ * @param[in,out] netif the network interface
+ * @param[in] addr      the address of the multicast group
+ *
+ * @note    Only available with module `gnrc_netif_ipv4`.
+ *
+ * @return  >= 0, index of @p addr on @p netif on success
+ * @return  -ENOMEM, when no space for new addresses is left on the interface
+ */
+int gnrc_netif_ipv4_group_join_internal(gnrc_netif_t *netif,
+                                        const ipv4_addr_t *addr);
+
+/**
+ * @brief   Let interface leave from an IPv4 multicast group
+ *
+ * @pre `(netif != NULL) && (addr != NULL)`
+ *
+ * @param[in,out] netif the network interface
+ * @param[in] addr      the address of the multicast group
+ *
+ * @note    Only available with module `gnrc_netif_ipv4`.
+ */
+void gnrc_netif_ipv4_group_leave_internal(gnrc_netif_t *netif,
+                                          const ipv4_addr_t *addr);
+
+/**
+ * @brief   Returns the index of @p addr in gnrc_netif_ipv4_t::groups of
+ *          @p netif
+ *
+ * @pre `(netif != NULL) && (addr != NULL)`
+ *
+ * Can be used to check if a multicast address is assigned to an interface.
+ *
+ * @param[in] netif the network interface
+ * @param[in] addr  the multicast address to check
+ *
+ * @note    Only available with module `gnrc_netif_ipv4`.
+ *
+ * @return  index of @p addr in gnrc_netif_ipv4_t::groups of @p netif
+ * @return  -1, if @p netif is not in group @p addr
+ */
+int gnrc_netif_ipv4_group_idx(gnrc_netif_t *netif,
+                              const ipv4_addr_t *addr);
+
+/**
+ * @brief   Converts an IPv4 multicast address to a multicast address
+ *          of the respective link layer.
+ *
+ * @pre There is enough allocated space in @p l2_group for an address for a
+ *      device of type @p dev_type (e.g. 6 bytes for an ethernet address).
+ *
+ * @param[in]   netif       The network interface @p l2_group should be
+ *                          generated for.
+ * @param[in]   ipv4_group  An IPv4 multicast address.
+ * @param[out]  l2_group    A link layer multicast address
+ *
+ * @note    Only available with module `gnrc_netif_ipv4`.
+ *
+ * @return  Length of @p l2_group in bytes
+ * @return  `-ENOTSUP` if link layer does not support multicast.
+ */
+static inline int gnrc_netif_ipv4_group_to_l2_group(gnrc_netif_t *netif,
+                                                     const ipv4_addr_t *ipv4_group,
+                                                     uint8_t *l2_group)
+{
+    return l2util_ipv4_group_to_l2_group(netif->device_type, ipv4_group,
+                                         l2_group);
+}
+
+/**
+ * @brief   Initialize the IPv4 MTU of @ref gnrc_netif_t based on
+ *          gnrc_netif_t::device_type
+ *
+ * @param[in,out] netif The network interface to initialize the MTU for.
+ *
+ * @note    Only available with module `gnrc_netif_ipv4`.
+ */
+void gnrc_netif_ipv4_init_mtu(gnrc_netif_t *netif);
+#endif  /* IS_USED(MODULE_GNRC_NETIF_IPV4) || defined(DOXYGEN) */
 
 /**
  * @brief   Checks if the interface represents a router according to RFC 4861

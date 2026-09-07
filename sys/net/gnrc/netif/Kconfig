@@ -25,6 +25,20 @@ config GNRC_NETIF_IPV6_ADDRS_NUMOF
         addresses solicited nodes multicast addresses.
         Default: 2 (1 link-local + 1 global address).
 
+config GNRC_NETIF_IPV4_ADDRS_NUMOF
+    int "Maximum number of IPv4 addresses per interface"
+    depends on USEMODULE_GNRC_NETIF_IPV4
+    default 1
+    help
+        Default: 1 (a single manually configured or DHCP-assigned address).
+
+config GNRC_NETIF_IPV4_GROUPS_NUMOF
+    int "Maximum number of IPv4 multicast groups per interface"
+    depends on USEMODULE_GNRC_NETIF_IPV4
+    default 1
+    help
+        Default: 1 (reserved for the all-hosts group, 224.0.0.1).
+
 config GNRC_NETIF_DEFAULT_HL
     int "Default hop limit"
     default 64

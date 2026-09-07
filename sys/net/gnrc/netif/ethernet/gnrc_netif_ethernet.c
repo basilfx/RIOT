@@ -21,9 +21,13 @@
 #include "net/ethernet/hdr.h"
 #include "net/gnrc.h"
 #include "net/gnrc/netif/ethernet.h"
+#include "net/l2util.h"
 #include "net/netdev/eth.h"
 #ifdef MODULE_GNRC_IPV6
 #include "net/ipv6/hdr.h"
+#endif
+#ifdef MODULE_GNRC_IPV4
+#include "net/ipv4/hdr.h"
 #endif
 
 #define ENABLE_DEBUG 0
@@ -71,6 +75,14 @@ static inline void _addr_set_multicast(gnrc_netif_t *netif, uint8_t *dst,
         case GNRC_NETTYPE_IPV6: {
             ipv6_hdr_t *ipv6 = payload->data;
             gnrc_netif_ipv6_group_to_l2_group(netif, &ipv6->dst, dst);
+            break;
+        }
+#endif
+#ifdef MODULE_GNRC_IPV4
+        case GNRC_NETTYPE_IPV4: {
+            ipv4_hdr_t *ipv4 = payload->data;
+
+            l2util_ipv4_group_to_l2_group(netif->device_type, &ipv4->dst, dst);
             break;
         }
 #endif

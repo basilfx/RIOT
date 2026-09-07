@@ -272,14 +272,6 @@ int gnrc_netif_get_from_netdev(gnrc_netif_t *netif, gnrc_netapi_opt_t *opt)
             assert(opt->data_len >= sizeof(eui64_t));
             res = gnrc_netif_ipv6_get_iid(netif, opt->data);
             break;
-        case NETOPT_MAX_PDU_SIZE:
-            if (opt->context == GNRC_NETTYPE_IPV6) {
-                assert(opt->data_len == sizeof(uint16_t));
-                *((uint16_t *)opt->data) = netif->ipv6.mtu;
-                res = sizeof(uint16_t);
-            }
-            /* else ask device */
-            break;
 #if IS_ACTIVE(CONFIG_GNRC_IPV6_NIB_ROUTER)
         case NETOPT_IPV6_FORWARDING:
             assert(opt->data_len == sizeof(netopt_enable_t));
@@ -295,6 +287,96 @@ int gnrc_netif_get_from_netdev(gnrc_netif_t *netif, gnrc_netapi_opt_t *opt)
             break;
 #endif  /* CONFIG_GNRC_IPV6_NIB_ROUTER */
 #endif  /* IS_USED(MODULE_GNRC_NETIF_IPV6) */
+        case NETOPT_MAX_PDU_SIZE:
+#if IS_USED(MODULE_GNRC_NETIF_IPV6)
+            if (opt->context == GNRC_NETTYPE_IPV6) {
+                assert(opt->data_len == sizeof(uint16_t));
+                *((uint16_t *)opt->data) = netif->ipv6.mtu;
+                res = sizeof(uint16_t);
+                break;
+            }
+#endif
+#if IS_USED(MODULE_GNRC_NETIF_IPV4)
+            if (opt->context == GNRC_NETTYPE_IPV4) {
+                assert(opt->data_len == sizeof(uint16_t));
+                *((uint16_t *)opt->data) = netif->ipv4.mtu;
+                res = sizeof(uint16_t);
+                break;
+            }
+#endif
+            /* else ask device */
+            break;
+#if IS_USED(MODULE_GNRC_NETIF_IPV4)
+        case NETOPT_IPV4_ADDR: {
+                assert(opt->data_len >= sizeof(ipv4_addr_t));
+                ipv4_addr_t *tgt = opt->data;
+
+                res = 0;
+                for (unsigned i = 0;
+                     (res < (int)opt->data_len) &&
+                     (i < CONFIG_GNRC_NETIF_IPV4_ADDRS_NUMOF);
+                     i++) {
+                    if (netif->ipv4.addrs_flags[i] != GNRC_NETIF_IPV4_ADDRS_FLAGS_STATE_UNUSED) {
+                        memcpy(tgt, &netif->ipv4.addrs[i], sizeof(ipv4_addr_t));
+                        res += sizeof(ipv4_addr_t);
+                        tgt++;
+                    }
+                }
+            }
+            break;
+        case NETOPT_IPV4_ADDR_FLAGS: {
+                assert(opt->data_len >= sizeof(uint8_t));
+                uint8_t *tgt = opt->data;
+
+                res = 0;
+                for (unsigned i = 0;
+                     (res < (int)opt->data_len) &&
+                     (i < CONFIG_GNRC_NETIF_IPV4_ADDRS_NUMOF);
+                     i++) {
+                    if (netif->ipv4.addrs_flags[i] != GNRC_NETIF_IPV4_ADDRS_FLAGS_STATE_UNUSED) {
+                        *tgt = netif->ipv4.addrs_flags[i];
+                        res += sizeof(uint8_t);
+                        tgt++;
+                    }
+                }
+            }
+            break;
+        case NETOPT_IPV4_PREFIX_LEN: {
+                assert(opt->data_len >= sizeof(uint8_t));
+                uint8_t *tgt = opt->data;
+
+                res = 0;
+                for (unsigned i = 0;
+                     (res < (int)opt->data_len) &&
+                     (i < CONFIG_GNRC_NETIF_IPV4_ADDRS_NUMOF);
+                     i++) {
+                    if (netif->ipv4.addrs_flags[i] != GNRC_NETIF_IPV4_ADDRS_FLAGS_STATE_UNUSED) {
+                        *tgt = netif->ipv4.prefix_lens[i];
+                        res += sizeof(uint8_t);
+                        tgt++;
+                    }
+                }
+            }
+            break;
+        case NETOPT_IPV4_GROUP: {
+                assert(opt->data_len >= sizeof(ipv4_addr_t));
+                ipv4_addr_t *tgt = opt->data;
+
+                res = 0;
+                for (unsigned i = 0;
+                     (res < (int)opt->data_len) &&
+                     (i < CONFIG_GNRC_NETIF_IPV4_GROUPS_NUMOF);
+                     i++) {
+                    if (netif->ipv4.groups[i].u32.u32 != 0) {
+                        memcpy(tgt, &netif->ipv4.groups[i],
+                               sizeof(ipv4_addr_t));
+                        res += sizeof(ipv4_addr_t);
+                        tgt++;
+                    }
+                }
+            }
+            break;
+#endif  /* IS_USED(MODULE_GNRC_NETIF_IPV4) */
 #ifdef MODULE_GNRC_SIXLOWPAN_IPHC
         case NETOPT_6LO_IPHC:
             assert(opt->data_len == sizeof(netopt_enable_t));
@@ -376,14 +458,6 @@ int gnrc_netif_set_from_netdev(gnrc_netif_t *netif,
             gnrc_netif_ipv6_group_leave_internal(netif, opt->data);
             res = sizeof(ipv6_addr_t);
             break;
-        case NETOPT_MAX_PDU_SIZE:
-            if (opt->context == GNRC_NETTYPE_IPV6) {
-                assert(opt->data_len == sizeof(uint16_t));
-                netif->ipv6.mtu = *((uint16_t *)opt->data);
-                res = sizeof(uint16_t);
-            }
-            /* else set device */
-            break;
 #if IS_ACTIVE(CONFIG_GNRC_IPV6_NIB_ROUTER)
         case NETOPT_IPV6_FORWARDING:
             assert(opt->data_len == sizeof(netopt_enable_t));
@@ -406,6 +480,66 @@ int gnrc_netif_set_from_netdev(gnrc_netif_t *netif,
             break;
 #endif  /* CONFIG_GNRC_IPV6_NIB_ROUTER */
 #endif  /* IS_USED(MODULE_GNRC_NETIF_IPV6) */
+        case NETOPT_MAX_PDU_SIZE:
+#if IS_USED(MODULE_GNRC_NETIF_IPV6)
+            if (opt->context == GNRC_NETTYPE_IPV6) {
+                assert(opt->data_len == sizeof(uint16_t));
+                netif->ipv6.mtu = *((uint16_t *)opt->data);
+                res = sizeof(uint16_t);
+                break;
+            }
+#endif
+#if IS_USED(MODULE_GNRC_NETIF_IPV4)
+            if (opt->context == GNRC_NETTYPE_IPV4) {
+                assert(opt->data_len == sizeof(uint16_t));
+                netif->ipv4.mtu = *((uint16_t *)opt->data);
+                res = sizeof(uint16_t);
+                break;
+            }
+#endif
+            /* else set device */
+            break;
+#if IS_USED(MODULE_GNRC_NETIF_IPV4)
+        case NETOPT_IPV4_ADDR: {
+                assert(opt->data_len == sizeof(ipv4_addr_t));
+                /* always assume manually added */
+                uint8_t flags = ((((uint8_t)opt->context & 0xff) &
+                                  ~GNRC_NETIF_IPV4_ADDRS_FLAGS_STATE_MASK) |
+                                 GNRC_NETIF_IPV4_ADDRS_FLAGS_STATE_MANUAL);
+                uint8_t pfx_len = (uint8_t)(opt->context >> 8U);
+                /* acquire locks a recursive mutex so we are safe calling this
+                 * public function */
+                res = gnrc_netif_ipv4_addr_add_internal(netif, opt->data,
+                                                        pfx_len, flags);
+                if (res >= 0) {
+                    res = sizeof(ipv4_addr_t);
+                }
+            }
+            break;
+        case NETOPT_IPV4_ADDR_REMOVE:
+            assert(opt->data_len == sizeof(ipv4_addr_t));
+            /* acquire locks a recursive mutex so we are safe calling this
+             * public function */
+            gnrc_netif_ipv4_addr_remove_internal(netif, opt->data);
+            res = sizeof(ipv4_addr_t);
+            break;
+        case NETOPT_IPV4_GROUP:
+            assert(opt->data_len == sizeof(ipv4_addr_t));
+            /* acquire locks a recursive mutex so we are safe calling this
+             * public function */
+            res = gnrc_netif_ipv4_group_join_internal(netif, opt->data);
+            if (res >= 0) {
+                res = sizeof(ipv4_addr_t);
+            }
+            break;
+        case NETOPT_IPV4_GROUP_LEAVE:
+            assert(opt->data_len == sizeof(ipv4_addr_t));
+            /* acquire locks a recursive mutex so we are safe calling this
+             * public function */
+            gnrc_netif_ipv4_group_leave_internal(netif, opt->data);
+            res = sizeof(ipv4_addr_t);
+            break;
+#endif  /* IS_USED(MODULE_GNRC_NETIF_IPV4) */
 #ifdef MODULE_GNRC_SIXLOWPAN_IPHC
         case NETOPT_6LO_IPHC:
             assert(opt->data_len == sizeof(netopt_enable_t));
@@ -528,6 +662,17 @@ void gnrc_netif_release(gnrc_netif_t *netif)
     if (netif && (netif->ops)) {
         rmutex_unlock(&netif->mutex);
     }
+}
+
+static int _netif_ops_set_helper(gnrc_netif_t *netif, netopt_t opt,
+                                 void *data, uint16_t data_len)
+{
+    gnrc_netapi_opt_t netapi_opt = {
+        .opt = opt,
+        .data = data,
+        .data_len = data_len,
+    };
+    return netif->ops->set(netif, &netapi_opt);
 }
 
 #if IS_USED(MODULE_GNRC_NETIF_IPV6)
@@ -827,17 +972,6 @@ gnrc_netif_t *gnrc_netif_get_by_prefix(const ipv6_addr_t *prefix)
         }
     }
     return best_netif;
-}
-
-static int _netif_ops_set_helper(gnrc_netif_t *netif, netopt_t opt,
-                                 void *data, uint16_t data_len)
-{
-    gnrc_netapi_opt_t netapi_opt = {
-        .opt = opt,
-        .data = data,
-        .data_len = data_len,
-    };
-    return netif->ops->set(netif, &netapi_opt);
 }
 
 int gnrc_netif_ipv6_group_join_internal(gnrc_netif_t *netif,
@@ -1507,6 +1641,280 @@ bool gnrc_netif_ipv6_wait_for_global_address(gnrc_netif_t *netif,
 #endif  /* IS_USED(MODULE_GNRC_NETIF_BUS) */
 #endif  /* IS_USED(MODULE_GNRC_NETIF_IPV6) */
 
+#if IS_USED(MODULE_GNRC_NETIF_IPV4)
+static int _ipv4_addr_idx(const gnrc_netif_t *netif, const ipv4_addr_t *addr)
+{
+    assert((netif != NULL) && (addr != NULL));
+    for (int i = 0; i < CONFIG_GNRC_NETIF_IPV4_ADDRS_NUMOF; i++) {
+        if ((netif->ipv4.addrs_flags[i] != GNRC_NETIF_IPV4_ADDRS_FLAGS_STATE_UNUSED) &&
+            ipv4_addr_equal(&netif->ipv4.addrs[i], addr)) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+static int _ipv4_group_idx(const gnrc_netif_t *netif, const ipv4_addr_t *addr)
+{
+    assert((netif != NULL) && (addr != NULL));
+    for (int i = 0; i < CONFIG_GNRC_NETIF_IPV4_GROUPS_NUMOF; i++) {
+        if (netif->ipv4.groups[i].u32.u32 == 0) {
+            continue;
+        }
+        if (ipv4_addr_equal(&netif->ipv4.groups[i], addr)) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+/**
+ * @brief   Matches an address by prefix to an address on the interface and
+ *          return index of the best (longest prefix) match
+ *
+ * @param[in] netif     the network interface
+ * @param[in] addr      the address to match
+ *
+ * @return  index of the best match for @p addr
+ * @return  -1 if no match was found
+ *
+ * @pre `netif != NULL` and `addr != NULL`
+ */
+static int _ipv4_match_to_idx(const gnrc_netif_t *netif,
+                              const ipv4_addr_t *addr)
+{
+    int idx = -1;
+    int best_match = -1;
+
+    assert((netif != NULL) && (addr != NULL));
+    for (int i = 0; i < CONFIG_GNRC_NETIF_IPV4_ADDRS_NUMOF; i++) {
+        if (netif->ipv4.addrs_flags[i] == GNRC_NETIF_IPV4_ADDRS_FLAGS_STATE_UNUSED) {
+            continue;
+        }
+        if (ipv4_addr_match_prefix(&netif->ipv4.addrs[i], addr,
+                                   netif->ipv4.prefix_lens[i]) &&
+            ((int)netif->ipv4.prefix_lens[i] > best_match)) {
+            idx = i;
+            best_match = netif->ipv4.prefix_lens[i];
+        }
+    }
+    return idx;
+}
+
+int gnrc_netif_ipv4_addr_add_internal(gnrc_netif_t *netif,
+                                      const ipv4_addr_t *addr,
+                                      unsigned pfx_len, uint8_t flags)
+{
+    unsigned idx = UINT_MAX;
+
+    assert((netif != NULL) && (addr != NULL));
+    assert(!ipv4_addr_is_multicast(addr));
+    assert((pfx_len > 0) && (pfx_len <= 32));
+    gnrc_netif_acquire(netif);
+    for (unsigned i = 0; i < CONFIG_GNRC_NETIF_IPV4_ADDRS_NUMOF; i++) {
+        if (ipv4_addr_equal(&netif->ipv4.addrs[i], addr)) {
+            gnrc_netif_release(netif);
+            return i;
+        }
+        if ((idx == UINT_MAX) &&
+            (netif->ipv4.addrs_flags[i] == GNRC_NETIF_IPV4_ADDRS_FLAGS_STATE_UNUSED)) {
+            idx = i;
+        }
+    }
+    if (idx == UINT_MAX) {
+        gnrc_netif_release(netif);
+        return -ENOMEM;
+    }
+    netif->ipv4.addrs_flags[idx] = flags;
+    netif->ipv4.prefix_lens[idx] = (uint8_t)pfx_len;
+    memcpy(&netif->ipv4.addrs[idx], addr, sizeof(netif->ipv4.addrs[idx]));
+    gnrc_netif_release(netif);
+    return idx;
+}
+
+void gnrc_netif_ipv4_addr_remove_internal(gnrc_netif_t *netif,
+                                          const ipv4_addr_t *addr)
+{
+    assert((netif != NULL) && (addr != NULL));
+    gnrc_netif_acquire(netif);
+    for (unsigned i = 0; i < CONFIG_GNRC_NETIF_IPV4_ADDRS_NUMOF; i++) {
+        if (ipv4_addr_equal(&netif->ipv4.addrs[i], addr)) {
+            netif->ipv4.addrs_flags[i] = GNRC_NETIF_IPV4_ADDRS_FLAGS_STATE_UNUSED;
+            netif->ipv4.prefix_lens[i] = 0;
+            memset(&netif->ipv4.addrs[i], 0, sizeof(netif->ipv4.addrs[i]));
+        }
+    }
+    gnrc_netif_release(netif);
+}
+
+int gnrc_netif_ipv4_addr_idx(gnrc_netif_t *netif,
+                             const ipv4_addr_t *addr)
+{
+    int idx;
+
+    assert((netif != NULL) && (addr != NULL));
+    gnrc_netif_acquire(netif);
+    idx = _ipv4_addr_idx(netif, addr);
+    gnrc_netif_release(netif);
+    return idx;
+}
+
+int gnrc_netif_ipv4_addr_match(gnrc_netif_t *netif,
+                               const ipv4_addr_t *addr)
+{
+    int idx;
+
+    assert((netif != NULL) && (addr != NULL));
+    gnrc_netif_acquire(netif);
+    idx = _ipv4_match_to_idx(netif, addr);
+    gnrc_netif_release(netif);
+    return idx;
+}
+
+gnrc_netif_t *gnrc_netif_get_by_ipv4_addr(const ipv4_addr_t *addr)
+{
+    gnrc_netif_t *netif = NULL;
+
+    while ((netif = gnrc_netif_iter(netif))) {
+        if (_ipv4_addr_idx(netif, addr) >= 0) {
+            break;
+        }
+        if (_ipv4_group_idx(netif, addr) >= 0) {
+            break;
+        }
+    }
+    return netif;
+}
+
+gnrc_netif_t *gnrc_netif_get_by_ipv4_prefix(const ipv4_addr_t *prefix)
+{
+    gnrc_netif_t *netif = NULL, *best_netif = NULL;
+    int best_match = -1;
+
+    while ((netif = gnrc_netif_iter(netif))) {
+        int idx = _ipv4_match_to_idx(netif, prefix);
+
+        if ((idx >= 0) && ((int)netif->ipv4.prefix_lens[idx] > best_match)) {
+            best_match = netif->ipv4.prefix_lens[idx];
+            best_netif = netif;
+        }
+    }
+    return best_netif;
+}
+
+int gnrc_netif_ipv4_group_join_internal(gnrc_netif_t *netif,
+                                        const ipv4_addr_t *addr)
+{
+    uint8_t l2_group_data[GNRC_NETIF_L2ADDR_MAXLEN];
+    unsigned idx = UINT_MAX;
+    int l2_group_len;
+
+    assert((netif != NULL) && (addr != NULL));
+    /* can be called out of lock */
+    l2_group_len = gnrc_netif_ipv4_group_to_l2_group(netif, addr,
+                                                     l2_group_data);
+    gnrc_netif_acquire(netif);
+    for (unsigned i = 0; i < CONFIG_GNRC_NETIF_IPV4_GROUPS_NUMOF; i++) {
+        if (ipv4_addr_equal(&netif->ipv4.groups[i], addr)) {
+            gnrc_netif_release(netif);
+            return i;
+        }
+        if ((idx == UINT_MAX) && (netif->ipv4.groups[i].u32.u32 == 0)) {
+            idx = i;
+        }
+    }
+    if (idx == UINT_MAX) {
+        gnrc_netif_release(netif);
+        return -ENOMEM;
+    }
+    if (l2_group_len > 0) {
+        int res = _netif_ops_set_helper(netif, NETOPT_L2_GROUP,
+                                        l2_group_data, (uint16_t)l2_group_len);
+        /* link layer does not support multicast, but we can still use
+         * broadcast */
+        if ((res != -ENOTSUP) && (res < 0)) {
+            gnrc_netif_release(netif);
+            return res;
+        }
+    }
+    /* link layer does not support multicast, but we can still use
+     * broadcast */
+    else if (l2_group_len != -ENOTSUP) {
+        gnrc_netif_release(netif);
+        return l2_group_len;
+    }
+    memcpy(&netif->ipv4.groups[idx], addr, sizeof(netif->ipv4.groups[idx]));
+    gnrc_netif_release(netif);
+    return idx;
+}
+
+void gnrc_netif_ipv4_group_leave_internal(gnrc_netif_t *netif,
+                                          const ipv4_addr_t *addr)
+{
+    uint8_t l2_group_data[GNRC_NETIF_L2ADDR_MAXLEN];
+    int idx = -1, l2_group_len;
+    /* IPv4 addresses that correspond to the same L2 address */
+    unsigned l2_groups = 0;
+
+    assert((netif != NULL) && (addr != NULL));
+    /* can be called out of lock */
+    l2_group_len = gnrc_netif_ipv4_group_to_l2_group(netif, addr,
+                                                     l2_group_data);
+    /* link layer does not support multicast, but might still have used
+     * broadcast */
+    if ((l2_group_len < 0) && (l2_group_len != -ENOTSUP)) {
+        return;
+    }
+    gnrc_netif_acquire(netif);
+    for (unsigned i = 0; i < CONFIG_GNRC_NETIF_IPV4_GROUPS_NUMOF; i++) {
+        if (l2_group_len > 0) {
+            uint8_t tmp[GNRC_NETIF_L2ADDR_MAXLEN];
+            if ((netif->ipv4.groups[i].u32.u32 != 0) &&
+                (gnrc_netif_ipv4_group_to_l2_group(netif,
+                                                   &netif->ipv4.groups[i],
+                                                   tmp) == l2_group_len)) {
+                if (memcmp(tmp, l2_group_data, l2_group_len) == 0) {
+                    l2_groups++;
+                }
+            }
+        }
+        if (ipv4_addr_equal(&netif->ipv4.groups[i], addr)) {
+            idx = i;
+        }
+    }
+    if (idx < 0) {
+        gnrc_netif_release(netif);
+        return;
+    }
+    /* we only found exactly one IPv4 multicast address that corresponds to
+     * `l2_group_data`, so we can remove it; if there would be more, we need
+     * to stay in the L2 group */
+    if (l2_groups == 1) {
+        int res = _netif_ops_set_helper(netif, NETOPT_L2_GROUP_LEAVE,
+                                        l2_group_data, (uint16_t)l2_group_len);
+        /* link layer does not support multicast, but might still have used
+         * broadcast */
+        if ((res != -ENOTSUP) && (res < 0)) {
+            DEBUG("gnrc_netif: error leaving link layer group\n");
+        }
+    }
+    memset(&netif->ipv4.groups[idx], 0, sizeof(netif->ipv4.groups[idx]));
+    gnrc_netif_release(netif);
+}
+
+int gnrc_netif_ipv4_group_idx(gnrc_netif_t *netif,
+                              const ipv4_addr_t *addr)
+{
+    int idx;
+
+    assert((netif != NULL) && (addr != NULL));
+    gnrc_netif_acquire(netif);
+    idx = _ipv4_group_idx(netif, addr);
+    gnrc_netif_release(netif);
+    return idx;
+}
+#endif  /* IS_USED(MODULE_GNRC_NETIF_IPV4) */
+
 static void _update_l2addr_from_dev(gnrc_netif_t *netif)
 {
     netdev_t *dev = netif->dev;
@@ -1539,6 +1947,9 @@ static void _init_from_device(gnrc_netif_t *netif)
     assert(res == sizeof(tmp));
     netif->device_type = (uint8_t)tmp;
     gnrc_netif_ipv6_init_mtu(netif);
+#if IS_USED(MODULE_GNRC_NETIF_IPV4)
+    gnrc_netif_ipv4_init_mtu(netif);
+#endif
     _update_l2addr_from_dev(netif);
 }
 

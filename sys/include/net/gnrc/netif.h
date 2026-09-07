@@ -37,6 +37,7 @@
 #include "net/gnrc/netif/conf.h"
 #include "net/gnrc/netif/flags.h"
 #include "net/gnrc/pkt.h"
+#include "net/ipv4/addr.h"
 #include "net/ipv6/addr.h"
 #include "net/l2util.h"
 #include "net/ndp.h"
@@ -64,6 +65,10 @@
 
 #if IS_USED(MODULE_GNRC_NETIF_IPV6)
 #  include "net/gnrc/netif/ipv6.h"
+#endif
+
+#if IS_USED(MODULE_GNRC_NETIF_IPV4)
+#  include "net/gnrc/netif/ipv4.h"
 #endif
 
 #if IS_USED(MODULE_GNRC_NETIF_PKTQ)
@@ -147,6 +152,9 @@ typedef struct {
 #endif
 #if IS_USED(MODULE_GNRC_NETIF_IPV6) || defined(DOXYGEN)
     gnrc_netif_ipv6_t ipv6;                 /**< IPv6 component */
+#endif
+#if IS_USED(MODULE_GNRC_NETIF_IPV4) || defined(DOXYGEN)
+    gnrc_netif_ipv4_t ipv4;                 /**< IPv4 component */
 #endif
 #if IS_USED(MODULE_GNRC_NETIF_BUS) || DOXYGEN
     msg_bus_t bus[GNRC_NETIF_BUS_NUMOF];    /**< Event Message Bus */
@@ -621,6 +629,165 @@ static inline int gnrc_netif_ipv6_group_leave(const gnrc_netif_t *netif,
     assert(group != NULL);
     return gnrc_netapi_set(netif->pid, NETOPT_IPV6_GROUP_LEAVE, 0, group,
                            sizeof(ipv6_addr_t));
+}
+
+/**
+ * @brief   Gets the IPv4 addresses of an interface (if IPv4 is supported)
+ *
+ * @pre `netif != NULL`
+ * @pre `addrs != NULL`
+ * @pre `max_len >= sizeof(ipv4_addr_t)`
+ *
+ * @param[in] netif     The interface. May not be `NULL`.
+ * @param[out] addrs    Up to the first `max_len / sizeof(ipv4_addr_t)`
+ *                      addresses assigned to @p netif. May not be `NULL`
+ * @param[in] max_len   Number of *bytes* available in @p addrs. Must be at
+ *                      least `sizeof(ipv4_addr_t)`. It is recommended to use
+ *                      @p CONFIG_GNRC_NETIF_IPV4_ADDRS_NUMOF `* sizeof(ipv4_addr_t)`
+ *                      here (and have @p addrs of the according length).
+ *
+ * @return  Size of the array of addresses in @p addrs on success.
+ *          (number of addresses times `sizeof(ipv4_addr_t)`)
+ *          May be 0 if no addresses are configured.
+ * @return  -ENOTSUP, if @p netif doesn't support IPv4.
+ */
+static inline int gnrc_netif_ipv4_addrs_get(const gnrc_netif_t *netif,
+                                            ipv4_addr_t *addrs,
+                                            size_t max_len)
+{
+    assert(netif != NULL);
+    assert(addrs != NULL);
+    assert(max_len >= sizeof(ipv4_addr_t));
+    return gnrc_netapi_get(netif->pid, NETOPT_IPV4_ADDR, 0, addrs, max_len);
+}
+
+/**
+ * @brief   Adds an IPv4 address to an interface (if IPv4 is supported)
+ *
+ * @pre `netif != NULL`
+ * @pre `addr != NULL`
+ * @pre `(pfx_len > 0) && (pfx_len <= 32)`
+ *
+ * @param[in] netif     The interface. May not be `NULL`.
+ * @param[in] addr      The address to add to @p netif. May not be `NULL`.
+ * @param[in] pfx_len   The prefix length of @p addr. Must be greater than 0
+ *                      and lesser than or equal to 32.
+ * @param[in] flags     [Flags](@ref net_gnrc_netif_ipv4_addrs_flags) for
+ *                      @p addr.
+ *
+ * @return  sizeof(ipv4_addr_t) on success.
+ * @return  -ENOMEM, if no space is left on @p netif to add @p addr.
+ * @return  -ENOTSUP, if @p netif doesn't support IPv4.
+ */
+static inline int gnrc_netif_ipv4_addr_add(const gnrc_netif_t *netif,
+                                           const ipv4_addr_t *addr, unsigned pfx_len,
+                                           uint8_t flags)
+{
+    assert(netif != NULL);
+    assert(addr != NULL);
+    assert((pfx_len > 0) && (pfx_len <= 32));
+    return gnrc_netapi_set(netif->pid, NETOPT_IPV4_ADDR,
+                           ((pfx_len << 8U) | flags), addr,
+                           sizeof(ipv4_addr_t));
+}
+
+/**
+ * @brief   Removes an IPv4 address from an interface (if IPv4 is supported)
+ *
+ * @pre `netif != NULL`
+ * @pre `addr != NULL`
+ *
+ * @param[in] netif     The interface. May not be `NULL`.
+ * @param[in] addr      The address to remove from @p netif. May not be `NULL`.
+ *
+ * @return  sizeof(ipv4_addr_t) on success.
+ * @return  -ENOTSUP, if @p netif doesn't support IPv4.
+ */
+static inline int gnrc_netif_ipv4_addr_remove(const gnrc_netif_t *netif,
+                                              const ipv4_addr_t *addr)
+{
+    assert(netif != NULL);
+    assert(addr != NULL);
+    return gnrc_netapi_set(netif->pid, NETOPT_IPV4_ADDR_REMOVE,
+                           0, addr, sizeof(ipv4_addr_t));
+}
+
+/**
+ * @brief   Gets the IPv4 multicast groups an interface is joined to (if IPv4
+ *          is supported)
+ *
+ * @pre `netif != NULL`
+ * @pre `groups != NULL`
+ * @pre `max_len >= sizeof(ipv4_addr_t)`
+ *
+ * @param[in] netif     The interface. May not be `NULL`.
+ * @param[out] groups   Up to the first `max_len / sizeof(ipv4_addr_t)`
+ *                      multicast groups @p netif is joined to. May not be
+ *                      `NULL`
+ * @param[in] max_len   Number of *bytes* available in @p groups. Must be at
+ *                      least `sizeof(ipv4_addr_t)`. It is recommended to use
+ *                      @p CONFIG_GNRC_NETIF_IPV4_GROUPS_NUMOF `* sizeof(ipv4_addr_t)`
+ *                      here (and have @p groups of the according length).
+ *
+ * @return  Number of addresses in @p groups times `sizeof(ipv4_addr_t)` on
+ *          success (including 0).
+ * @return  -ENOTSUP, if @p netif doesn't support IPv4.
+ */
+static inline int gnrc_netif_ipv4_groups_get(const gnrc_netif_t *netif,
+                                             ipv4_addr_t *groups,
+                                             size_t max_len)
+{
+    assert(netif != NULL);
+    assert(groups != NULL);
+    assert(max_len >= sizeof(ipv4_addr_t));
+    return gnrc_netapi_get(netif->pid, NETOPT_IPV4_GROUP, 0, groups, max_len);
+}
+
+/**
+ * @brief   Joins an IPv4 multicast group on an interface (if IPv4 is
+ *          supported)
+ *
+ * @pre `netif != NULL`
+ * @pre `group != NULL`
+ *
+ * @param[in] netif     The interface.
+ * @param[in] group     The address of the multicast group to join on
+ *                      @p netif. May not be `NULL`.
+ *
+ * @return  sizeof(ipv4_addr_t) on success.
+ * @return  -ENOMEM, if no space is left on @p netif to add @p group.
+ * @return  -ENOTSUP, if @p netif doesn't support IPv4.
+ */
+static inline int gnrc_netif_ipv4_group_join(const gnrc_netif_t *netif,
+                                             const ipv4_addr_t *group)
+{
+    assert(netif != NULL);
+    assert(group != NULL);
+    return gnrc_netapi_set(netif->pid, NETOPT_IPV4_GROUP, 0, group,
+                           sizeof(ipv4_addr_t));
+}
+
+/**
+ * @brief   Leaves an IPv4 multicast group on an interface (if IPv4 is
+ *          supported)
+ *
+ * @pre `netif != NULL`
+ * @pre `group != NULL`
+ *
+ * @param[in] netif     The interface.
+ * @param[in] group     The address of the multicast group to leave on
+ *                      @p netif. May not be `NULL`.
+ *
+ * @return  sizeof(ipv4_addr_t) on success.
+ * @return  -ENOTSUP, if @p netif doesn't support IPv4.
+ */
+static inline int gnrc_netif_ipv4_group_leave(const gnrc_netif_t *netif,
+                                              const ipv4_addr_t *group)
+{
+    assert(netif != NULL);
+    assert(group != NULL);
+    return gnrc_netapi_set(netif->pid, NETOPT_IPV4_GROUP_LEAVE, 0, group,
+                           sizeof(ipv4_addr_t));
 }
 
 /**
