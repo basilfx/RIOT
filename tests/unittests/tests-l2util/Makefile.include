@@ -1,0 +1,2 @@
+USEMODULE += l2util
+USEMODULE += netdev_eth

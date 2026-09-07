@@ -1,5 +1,6 @@
 /*
  * SPDX-FileCopyrightText: 2018 Freie Universität Berlin
+ * SPDX-FileCopyrightText: 2026 Bas Stottelaar <basstottelaar@gmail.com>
  * SPDX-License-Identifier: LGPL-2.1-only
  */
 
@@ -26,6 +27,7 @@
 
 #include "compiler_hints.h"
 #include "net/eui64.h"
+#include "net/ipv4/addr.h"
 #include "net/ndp.h"
 
 #ifdef __cplusplus
@@ -148,6 +150,25 @@ int l2util_ndp_addr_len_from_l2ao(int dev_type,
  */
 int l2util_ipv6_group_to_l2_group(int dev_type,
                                   const ipv6_addr_t *ipv6_group,
+                                  uint8_t *l2_group);
+
+/**
+ * @brief   Converts an IPv4 multicast address to a multicast address
+ *          of the respective link layer.
+ *
+ * @pre There is enough allocated space in @p l2_group for an address for a
+ *      device of type @p dev_type (e.g. 6 bytes for an ethernet address).
+ *
+ * @param[in] dev_type      The network device type of the device @p l2_addr
+ *                          should be generated for.
+ * @param[in] ipv4_group    An IPv4 multicast address.
+ * @param[out] l2_group     A link layer multicast address
+ *
+ * @return  Length of @p l2_group in bytes
+ * @return  `-ENOTSUP` if link layer does not support multicast.
+ */
+int l2util_ipv4_group_to_l2_group(int dev_type,
+                                  const ipv4_addr_t *ipv4_group,
                                   uint8_t *l2_group);
 
 /**

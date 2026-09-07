@@ -19,6 +19,7 @@
 #include "fmt.h"
 #include "net/eui48.h"
 #include "net/ieee802154.h"
+#include "net/ipv4/addr.h"
 #include "net/ipv6.h"
 #include "net/netdev.h"
 
@@ -332,6 +333,31 @@ int l2util_ipv6_group_to_l2_group(int dev_type,
 #endif
         default:
             (void)ipv6_group;
+            (void)l2_group;
+            return -ENOTSUP;
+    }
+}
+
+int l2util_ipv4_group_to_l2_group(int dev_type,
+                                  const ipv4_addr_t *ipv4_group,
+                                  uint8_t *l2_group)
+{
+    switch (dev_type) {
+#if IS_USED(MODULE_NETDEV_ETH)
+        case NETDEV_TYPE_ETHERNET:
+            /* RFC 1112: the low-order 23 bits of the multicast group
+             * address are mapped into the low-order 23 bits of the
+             * IANA-assigned MAC address block 01-00-5E-00-00-00/24 */
+            l2_group[0] = 0x01;
+            l2_group[1] = 0x00;
+            l2_group[2] = 0x5e;
+            l2_group[3] = ipv4_group->u8[1] & 0x7f;
+            l2_group[4] = ipv4_group->u8[2];
+            l2_group[5] = ipv4_group->u8[3];
+            return sizeof(eui48_t);
+#endif
+        default:
+            (void)ipv4_group;
             (void)l2_group;
             return -ENOTSUP;
     }
