@@ -32,6 +32,7 @@
 #include "net/inet_csum.h"
 
 #if IS_USED(MODULE_GNRC_IPV4)
+#include "net/gnrc/icmpv4/error.h"
 #include "net/ipv4/hdr.h"
 #endif
 
@@ -180,10 +181,14 @@ static void _receive(gnrc_pktsnip_t *pkt)
     /* send payload to receivers */
     if (!gnrc_netapi_dispatch_receive(GNRC_NETTYPE_UDP, port, pkt)) {
         DEBUG("udp: unable to forward packet as no one is interested in it\n");
-        /* ICMPv4 destination unreachable is not implemented yet */
 #ifdef MODULE_GNRC_IPV6
         if (ip->type == GNRC_NETTYPE_IPV6) {
             gnrc_icmpv6_error_dst_unr_send(ICMPV6_ERROR_DST_UNR_PORT, pkt);
+        }
+#endif
+#if IS_USED(MODULE_GNRC_IPV4)
+        if (ip->type == GNRC_NETTYPE_IPV4) {
+            gnrc_icmpv4_error_dst_unr_send(ICMPV4_ERROR_DST_UNR_PORT, pkt);
         }
 #endif
         gnrc_pktbuf_release(pkt);

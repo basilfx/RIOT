@@ -22,6 +22,7 @@
 #include "net/gnrc/netreg.h"
 #include "net/gnrc/nettype.h"
 #include "net/gnrc/pkt.h"
+#include "net/gnrc/icmpv4.h"
 #include "net/gnrc/icmpv6.h"
 #include "net/gnrc/ipv6.h"
 #include "net/gnrc/udp.h"
@@ -260,6 +261,10 @@ int gnrc_netreg_calc_csum(gnrc_pktsnip_t *hdr, gnrc_pktsnip_t *pseudo_hdr)
 #ifdef MODULE_GNRC_ICMPV6
         case GNRC_NETTYPE_ICMPV6:
             return gnrc_icmpv6_calc_csum(hdr, pseudo_hdr);
+#endif
+#ifdef MODULE_GNRC_ICMPV4
+        case GNRC_NETTYPE_ICMPV4:
+            return gnrc_icmpv4_calc_csum(hdr, pseudo_hdr);
 #endif
 #ifdef MODULE_GNRC_TCP
         case GNRC_NETTYPE_TCP:

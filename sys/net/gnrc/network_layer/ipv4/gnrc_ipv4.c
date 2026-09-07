@@ -22,6 +22,11 @@
 #include "net/protnum.h"
 #include "thread.h"
 
+#ifdef MODULE_GNRC_ICMPV4
+#include "net/gnrc/icmpv4.h"
+#endif
+#include "net/gnrc/icmpv4/error.h"
+
 #define ENABLE_DEBUG 0
 #include "debug.h"
 
@@ -55,14 +60,62 @@ ipv4_hdr_t *gnrc_ipv4_get_header(gnrc_pktsnip_t *pkt)
     return (ipv4_hdr_t *)tmp->data;
 }
 
-static void _demux(gnrc_netif_t *netif, gnrc_pktsnip_t *pkt, uint8_t protocol)
+static inline bool _gnrc_ipv4_is_interested(uint8_t protocol)
 {
-    (void)netif;
-    pkt->type = gnrc_nettype_from_protnum(protocol);
+#ifdef MODULE_GNRC_ICMPV4
+    return (protocol == PROTNUM_ICMP);
+#else
+    (void)protocol;
+    return false;
+#endif
+}
+
+/**
+ * @brief   Dispatches a packet to any subscriber of its next header,
+ *          leaving exactly one reference for the in-thread handler in
+ *          _demux() if @p interested is true.
+ */
+static void _dispatch_next_header(gnrc_pktsnip_t *pkt, uint8_t protocol,
+                                  bool interested)
+{
+    const bool has_subs = (gnrc_netreg_num(GNRC_NETTYPE_IPV4, protocol) > 0) ||
+                          interested;
+
+    if (has_subs) {
+        gnrc_pktbuf_hold(pkt, 1);  /* don't remove from packet buffer in
+                                    * next dispatch */
+    }
     if (gnrc_netapi_dispatch_receive(pkt->type, GNRC_NETREG_DEMUX_CTX_ALL,
                                      pkt) == 0) {
-        DEBUG("ipv4: unable to forward packet as no one is interested in it\n");
         gnrc_pktbuf_release(pkt);
+    }
+    if (!has_subs) {
+        /* pkt was already released above */
+        return;
+    }
+    if (interested) {
+        gnrc_pktbuf_hold(pkt, 1);  /* don't remove from packet buffer in
+                                    * next dispatch */
+    }
+    if (gnrc_netapi_dispatch_receive(GNRC_NETTYPE_IPV4, protocol, pkt) == 0) {
+        gnrc_pktbuf_release(pkt);
+    }
+}
+
+static void _demux(gnrc_netif_t *netif, gnrc_pktsnip_t *pkt, uint8_t protocol)
+{
+    pkt->type = gnrc_nettype_from_protnum(protocol);
+    _dispatch_next_header(pkt, protocol, _gnrc_ipv4_is_interested(protocol));
+    switch (protocol) {
+#ifdef MODULE_GNRC_ICMPV4
+        case PROTNUM_ICMP:
+            DEBUG("ipv4: handle ICMPv4 packet\n");
+            gnrc_icmpv4_demux(netif, pkt);
+            break;
+#endif
+        default:
+            (void)netif;
+            break;
     }
 }
 
@@ -153,7 +206,15 @@ static void _receive_ipv4(gnrc_netif_t *netif, gnrc_pktsnip_t *pkt)
         DEBUG("ipv4: invalid total length: %u, actual: %u, dropping packet\n",
               (unsigned)tot_len,
               (unsigned)(gnrc_pkt_len_upto(pkt, GNRC_NETTYPE_IPV4)));
+        gnrc_icmpv4_error_param_prob_send(&hdr->tl, pkt);
         gnrc_pktbuf_release_error(pkt, EINVAL);
+        return;
+    }
+
+    if (hdr->ttl == 0) {
+        DEBUG("ipv4: packet was received with ttl 0, dropping\n");
+        gnrc_icmpv4_error_time_exc_send(ICMPV4_ERROR_TIME_EXC_TTL, pkt);
+        gnrc_pktbuf_release_error(pkt, ETIMEDOUT);
         return;
     }
 
