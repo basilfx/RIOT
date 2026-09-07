@@ -28,6 +28,7 @@
 #include "net/gnrc/pktdump.h"
 #include "net/gnrc.h"
 #include "net/icmpv6.h"
+#include "net/ipv4/hdr.h"
 #include "net/ipv6/addr.h"
 #include "net/ipv6/hdr.h"
 #include "net/tcp.h"
@@ -70,6 +71,20 @@ static void _dump_snip(gnrc_pktsnip_t *pkt)
         }
         break;
 #endif  /* IS_USED(MODULE_GNRC_NETTYPE_SIXLOWPAN) */
+#if IS_USED(MODULE_GNRC_NETTYPE_IPV4)
+    case GNRC_NETTYPE_IPV4:
+        printf("NETTYPE_IPV4 (%i)\n", pkt->type);
+        if (IS_USED(MODULE_IPV4_HDR)) {
+            ipv4_hdr_print(pkt->data);
+            hdr_len = sizeof(ipv4_hdr_t);
+        }
+        break;
+#endif  /* IS_USED(MODULE_GNRC_NETTYPE_IPV4) */
+#if IS_USED(MODULE_GNRC_NETTYPE_ARP)
+    case GNRC_NETTYPE_ARP:
+        printf("NETTYPE_ARP (%i)\n", pkt->type);
+        break;
+#endif  /* IS_USED(MODULE_GNRC_NETTYPE_ARP) */
 #if IS_USED(MODULE_GNRC_NETTYPE_IPV6)
     case GNRC_NETTYPE_IPV6:
         printf("NETTYPE_IPV6 (%i)\n", pkt->type);

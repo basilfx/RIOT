@@ -127,6 +127,12 @@ extern "C" {
  */
 #define AUTO_INIT_PRIO_MOD_GNRC_IPV6                    1150
 #endif
+#ifndef AUTO_INIT_PRIO_MOD_GNRC_IPV4
+/**
+ * @brief   GNRC IPv4 priority
+ */
+#define AUTO_INIT_PRIO_MOD_GNRC_IPV4                    1155
+#endif
 #ifndef AUTO_INIT_PRIO_MOD_GNRC_UDP
 /**
  * @brief   GNRC UDP priority

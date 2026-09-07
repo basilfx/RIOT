@@ -1,0 +1,47 @@
+# Copyright (c) 2026 Bas Stottelaar
+#
+# This file is subject to the terms and conditions of the GNU Lesser
+# General Public License v2.1. See the file LICENSE in the top level
+# directory for more details.
+#
+menu "IPv4"
+
+menu "GNRC IPv4 module"
+    depends on USEMODULE_GNRC_IPV4
+
+config GNRC_IPV4_MSG_QUEUE_SIZE_EXP
+    int "Exponent for the message queue size used for the IPv4 thread (as 2^n)"
+    default 3
+    help
+        As the queue size ALWAYS needs to be power of two, this option
+        represents the exponent of 2^n, which will be used as the size of
+        the queue.
+
+config GNRC_IPV4_FT_SIZE
+    int "Maximum number of entries in the forwarding table"
+    default 4
+
+endmenu # GNRC IPv4 module
+
+menu "GNRC IPv4 ARP"
+    depends on USEMODULE_GNRC_IPV4_ARP
+
+config GNRC_IPV4_ARP_CACHE_SIZE
+    int "Maximum number of entries in the ARP cache"
+    default 4
+
+config GNRC_IPV4_ARP_REQUEST_TIMEOUT_MS
+    int "Time between two retransmissions of an ARP request (in ms)"
+    default 1000
+
+config GNRC_IPV4_ARP_MAX_RETRIES
+    int "Maximum number of ARP request retransmissions before giving up"
+    default 3
+
+config GNRC_IPV4_ARP_CACHE_TIMEOUT_MS
+    int "Lifetime of a resolved cache entry before it is re-resolved (in ms)"
+    default 1200000
+
+endmenu # GNRC IPv4 ARP
+
+endmenu # IPv4

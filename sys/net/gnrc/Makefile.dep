@@ -376,6 +376,29 @@ ifneq (,$(filter gnrc_ipv6_router,$(USEMODULE)))
   USEMODULE += gnrc_ipv6_nib_router
 endif
 
+ifneq (,$(filter gnrc_ipv4,$(USEMODULE)))
+  DEFAULT_MODULE += auto_init_gnrc_ipv4
+  USEMODULE += evtimer
+  USEMODULE += inet_csum
+  USEMODULE += ipv4_addr
+  USEMODULE += gnrc_ipv4_arp
+  USEMODULE += gnrc_ipv4_hdr
+  USEMODULE += gnrc_netif
+  USEMODULE += gnrc_netif_ipv4
+  USEMODULE += gnrc_nettype_arp
+  USEMODULE += gnrc_nettype_ipv4
+endif
+
+ifneq (,$(filter gnrc_ipv4_arp,$(USEMODULE)))
+  USEMODULE += evtimer
+  USEMODULE += gnrc_netif
+endif
+
+ifneq (,$(filter gnrc_ipv4_hdr,$(USEMODULE)))
+  USEMODULE += ipv4_hdr
+  USEMODULE += gnrc_pktbuf
+endif
+
 ifneq (,$(filter gnrc_ipv6,$(USEMODULE)))
   DEFAULT_MODULE += auto_init_gnrc_ipv6
   USEMODULE += inet_csum

@@ -113,6 +113,11 @@ extern kernel_pid_t gnrc_ipv6_init(void);
 AUTO_INIT(gnrc_ipv6_init,
           AUTO_INIT_PRIO_MOD_GNRC_IPV6);
 #endif
+#if IS_USED(MODULE_AUTO_INIT_GNRC_IPV4)
+extern kernel_pid_t gnrc_ipv4_init(void);
+AUTO_INIT(gnrc_ipv4_init,
+          AUTO_INIT_PRIO_MOD_GNRC_IPV4);
+#endif
 #if IS_USED(MODULE_AUTO_INIT_GNRC_UDP)
 extern void gnrc_udp_init(void);
 AUTO_INIT(gnrc_udp_init,
