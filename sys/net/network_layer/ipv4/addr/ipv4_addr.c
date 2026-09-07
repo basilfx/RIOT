@@ -25,6 +25,8 @@
 
 const ipv4_addr_t ipv4_addr_unspecified = IPV4_ADDR_UNSPECIFIED;
 const ipv4_addr_t ipv4_addr_broadcast = IPV4_ADDR_BROADCAST;
+const ipv4_addr_t ipv4_addr_all_hosts_group = IPV4_ADDR_ALL_HOSTS_GROUP;
+const ipv4_addr_t ipv4_addr_all_routers_group = IPV4_ADDR_ALL_ROUTERS_GROUP;
 
 void ipv4_addr_print(const ipv4_addr_t *addr)
 {

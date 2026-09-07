@@ -62,6 +62,18 @@ extern "C" {
 #define IPV4_ADDR_BROADCAST         IPV4_ADDR_INIT(255, 255, 255, 255)
 
 /**
+ * @brief   Static initializer for the all-hosts multicast address
+ *          (224.0.0.1)
+ */
+#define IPV4_ADDR_ALL_HOSTS_GROUP   IPV4_ADDR_INIT(224, 0, 0, 1)
+
+/**
+ * @brief   Static initializer for the all-routers multicast address
+ *          (224.0.0.2)
+ */
+#define IPV4_ADDR_ALL_ROUTERS_GROUP IPV4_ADDR_INIT(224, 0, 0, 2)
+
+/**
  * @brief Data type to represent an IPv4 address.
  */
 typedef union {
@@ -82,6 +94,20 @@ extern const ipv4_addr_t ipv4_addr_unspecified;
  * @see @ref IPV4_ADDR_BROADCAST
  */
 extern const ipv4_addr_t ipv4_addr_broadcast;
+
+/**
+ * @brief   The all-hosts multicast address (224.0.0.1)
+ *
+ * @see @ref IPV4_ADDR_ALL_HOSTS_GROUP
+ */
+extern const ipv4_addr_t ipv4_addr_all_hosts_group;
+
+/**
+ * @brief   The all-routers multicast address (224.0.0.2)
+ *
+ * @see @ref IPV4_ADDR_ALL_ROUTERS_GROUP
+ */
+extern const ipv4_addr_t ipv4_addr_all_routers_group;
 
 /**
  * @brief   Checks if two IPv4 addresses are equal.
