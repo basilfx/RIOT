@@ -1,0 +1,105 @@
+---
+title: IPv4 Networking
+description: How to build GNRC applications with IPv4, IPv6, or both
+---
+
+GNRC's network layer supports IPv4 in addition to its original IPv6
+implementation. A GNRC application can be built as IPv4-only, IPv6-only, or
+dual-stack, purely by choosing which modules it pulls in; no source change
+is needed to switch between the three.
+
+This page describes what each configuration gets you and how to choose one.
+For a hands-on starting point, see the [`gnrc_ipv4` example][gnrc_ipv4-example]
+(IPv4-only) and the [`gnrc_networking` example][gnrc_networking-example]
+(IPv6-only). To build a dual-stack application, combine the module sets
+described below in a single `Makefile`.
+
+## IPv6-only
+
+This is GNRC's original, and still default, configuration:
+
+```makefile
+USEMODULE += gnrc_ipv6_default
+```
+
+It brings SLAAC, the Neighbor Information Base (NIB), router discovery, and
+optionally 6LoWPAN and RPL. See the
+[`gnrc_networking` example][gnrc_networking-example].
+
+## IPv4-only
+
+```makefile
+USEMODULE += gnrc_ipv4
+```
+
+`gnrc_ipv4` pulls in ARP (`gnrc_ipv4_arp`) automatically on Ethernet-shaped
+links; SLIP and other point-to-point links skip ARP entirely, since there is
+only ever one possible next hop. There is no SLAAC or Neighbor Discovery
+equivalent: an address is configured either by hand from the shell
+(`ifconfig <if> add <addr>/<prefix_len>`), via
+[`gnrc_ipv4_static_addr`][static-addr] at boot, or by running a DHCPv4
+client (`gnrc_dhcpv4_client`).
+
+GNRC's IPv4 support is host-only: it never forwards a packet received on
+one interface out another. The forwarding table (`gnrc_ipv4_ft`) still
+exists, but only to pick a gateway for off-link destinations, mirroring how
+a single-homed IPv6 host uses its default router without being a router
+itself.
+
+Optional additions, each its own module:
+
+* `gnrc_icmpv4_echo` / `gnrc_icmpv4_error` — ping (`ping4`) and ICMPv4 error
+  messages (destination unreachable, time exceeded).
+* `gnrc_ipv4_frag` — fragmentation and reassembly.
+* `gnrc_igmp` — IGMPv2 multicast group membership reporting.
+* `gnrc_udp`, `gnrc_sock_udp`, `gnrc_sock_ip` — UDP and raw IP sockets.
+* `gnrc_tcp`, `gnrc_sock_tcp` — TCP.
+* `gnrc_dhcpv4_client` — DHCPv4 address configuration.
+
+See the [`gnrc_ipv4` example][gnrc_ipv4-example] for a working `Makefile`
+that enables the common subset of these.
+
+## Dual-stack
+
+Adding both module sets to the same application builds a dual-stack node:
+
+```makefile
+USEMODULE += gnrc_ipv6_default
+USEMODULE += gnrc_ipv4
+USEMODULE += gnrc_icmpv4_echo
+# ... any other gnrc_ipv4_* / gnrc_icmpv6_* modules needed
+```
+
+Each network layer runs in its own GNRC thread (`gnrc_ipv6` and
+`gnrc_ipv4`) and keeps its own address, group and forwarding state on the
+interface (`netif->ipv6` vs. `netif->ipv4`). A dual-stack `sock_udp`,
+`sock_ip` or `gnrc_tcp` endpoint picks its family from the address passed
+to it (`AF_INET` vs. `AF_INET6`), so application code that already uses
+these APIs generally does not need to change to work over both families at
+once.
+
+Because neither stack forwards between interfaces on its own, a dual-stack
+node is not a NAT44 or NAT64 gateway; it is two independently-addressed
+single-homed stacks sharing a link layer.
+
+## Choosing
+
+| | IPv6-only | IPv4-only | Dual-stack |
+| --- | --- | --- | --- |
+| Address configuration | SLAAC / NDP | manual, static, or DHCPv4 | both |
+| 6LoWPAN, RPL | available | not applicable | IPv6 side only |
+| ARP | not applicable | on Ethernet-shaped links | Ethernet only |
+| Fragmentation | via 6LoWPAN or IPv6 ext. headers | `gnrc_ipv4_frag` | either |
+| Typical use | 6LoWPAN/IEEE 802.15.4 mesh, RPL networks | plain Ethernet/SLIP links, IPv4-only infrastructure | nodes that must speak to both kinds of peer |
+
+If the node only ever talks to IPv6 peers (the common case for
+6LoWPAN/RPL mesh networks), stick to IPv6-only: it is the more mature and
+widely tested configuration. Pick IPv4-only for a node on a plain
+Ethernet or SLIP link whose peers (routers, DHCP servers, other hosts) are
+IPv4-only. Reach for dual-stack only when a single node genuinely needs to
+be addressable from both kinds of peer; it costs an extra thread and the
+combined RAM/ROM footprint of both stacks.
+
+[gnrc_ipv4-example]: https://github.com/RIOT-OS/RIOT/tree/master/examples/networking/gnrc/gnrc_ipv4
+[gnrc_networking-example]: https://github.com/RIOT-OS/RIOT/tree/master/examples/networking/gnrc/networking
+[static-addr]: https://api.riot-os.org/group__net__gnrc__ipv4.html
