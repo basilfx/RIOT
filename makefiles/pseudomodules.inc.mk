@@ -145,6 +145,13 @@ PSEUDOMODULES += gcoap_dns
 PSEUDOMODULES += gcoap_dns_proxied
 ## @}
 
+## @addtogroup net_dhcpv4_client
+## @{
+## @defgroup net_gnrc_dhcpv4_client	gnrc_dhcpv4_client
+## @brief Basic DHCPv4 client implementation in GNRC
+PSEUDOMODULES += gnrc_dhcpv4_client
+## @}
+
 ## @addtogroup net_dhcpv6_client
 ## @{
 ## @defgroup net_gnrc_dhcpv6_client	gnrc_dhcpv6_client

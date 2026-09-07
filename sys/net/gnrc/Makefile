@@ -1,3 +1,6 @@
+ifneq (,$(filter gnrc_dhcpv4,$(USEMODULE)))
+  DIRS += application_layer/dhcpv4
+endif
 ifneq (,$(filter gnrc_dhcpv6,$(USEMODULE)))
   DIRS += application_layer/dhcpv6
 endif
