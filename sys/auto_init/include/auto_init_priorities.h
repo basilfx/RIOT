@@ -409,6 +409,12 @@ extern "C" {
  */
 #define AUTO_INIT_PRIO_MOD_GNRC_IPV6_STATIC_ADDR        1560
 #endif
+#ifndef AUTO_INIT_PRIO_MOD_GNRC_IPV4_STATIC_ADDR
+/**
+ * @brief   Static network configuration priority
+ */
+#define AUTO_INIT_PRIO_MOD_GNRC_IPV4_STATIC_ADDR        1565
+#endif
 #ifndef AUTO_INIT_PRIO_MOD_DRIVER_CRYPTOCELL_310
 /**
  * @brief CryptoCell Driver Priority

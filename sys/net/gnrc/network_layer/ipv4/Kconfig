@@ -74,4 +74,6 @@ config GNRC_IGMP_UNSOLICITED_REPORT_INTERVAL_MS
 
 endmenu # GNRC IGMP
 
+rsource "static_addr/Kconfig"
+
 endmenu # IPv4

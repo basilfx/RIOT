@@ -37,6 +37,9 @@ endif
 ifneq (,$(filter gnrc_ipv4_hdr,$(USEMODULE)))
   DIRS += network_layer/ipv4/hdr
 endif
+ifneq (,$(filter gnrc_ipv4_static_addr,$(USEMODULE)))
+  DIRS += network_layer/ipv4/static_addr
+endif
 ifneq (,$(filter gnrc_ipv6,$(USEMODULE)))
   DIRS += network_layer/ipv6
 endif

@@ -1,0 +1,21 @@
+# Copyright (c) 2026 Bas Stottelaar
+#
+# This file is subject to the terms and conditions of the GNU Lesser
+# General Public License v2.1. See the file LICENSE in the top level
+# directory for more details.
+#
+menu "Static IPv4 address and route"
+    depends on USEMODULE_GNRC_IPV4_STATIC_ADDR
+
+config GNRC_IPV4_STATIC_ADDR
+    string "Static IPv4 address of the interface, as address/prefix_len"
+    default "192.168.0.100/24"
+
+config GNRC_IPV4_STATIC_ADDR_IFACE
+    int "ID of the interface to configure, use 0 to auto-select the only interface"
+    default 0
+
+config GNRC_IPV4_STATIC_DEFAULT_ROUTER
+    string "Static IPv4 address of the default router"
+
+endmenu # Static IPv4 address and route
