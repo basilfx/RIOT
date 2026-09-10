@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RIOT webserver demo</title>
+<link rel="icon" href="/assets/riot-logo.svg">
+<script>
+var _theme = localStorage.getItem("theme");
+
+if (_theme) {
+  document.documentElement.dataset.theme = _theme;
+}
+</script>
+<style>
+  :root {
+    --riot-green: #40A687;
+    --riot-green-dark: #2f7d66;
+    --riot-red: #BC202A;
+
+    --light-bg: #f2f6f5;
+    --light-panel: #ffffff;
+    --light-border: #dde5e4;
+    --light-text: #16272b;
+    --light-muted: #6a8085;
+    --light-footer: #16272b;
+    --light-row-border: #eef2f2;
+    --light-row-hover: #f7fafa;
+
+    --dark-bg: #10171a;
+    --dark-panel: #1a2226;
+    --dark-border: #2b3639;
+    --dark-text: #e7eeed;
+    --dark-muted: #93a5aa;
+    --dark-footer: #0c1214;
+    --dark-row-border: #263033;
+    --dark-row-hover: #212b2e;
+
+    --bg: var(--light-bg);
+    --panel: var(--light-panel);
+    --border: var(--light-border);
+    --text: var(--light-text);
+    --muted: var(--light-muted);
+    --footer: var(--light-footer);
+    --row-border: var(--light-row-border);
+    --row-hover: var(--light-row-hover);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: var(--dark-bg);
+      --panel: var(--dark-panel);
+      --border: var(--dark-border);
+      --text: var(--dark-text);
+      --muted: var(--dark-muted);
+      --footer: var(--dark-footer);
+      --row-border: var(--dark-row-border);
+      --row-hover: var(--dark-row-hover);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: var(--dark-bg);
+    --panel: var(--dark-panel);
+    --border: var(--dark-border);
+    --text: var(--dark-text);
+    --muted: var(--dark-muted);
+    --footer: var(--dark-footer);
+    --row-border: var(--dark-row-border);
+    --row-hover: var(--dark-row-hover);
+  }
+  :root[data-theme="light"] {
+    --bg: var(--light-bg);
+    --panel: var(--light-panel);
+    --border: var(--light-border);
+    --text: var(--light-text);
+    --muted: var(--light-muted);
+    --footer: var(--light-footer);
+    --row-border: var(--light-row-border);
+    --row-hover: var(--light-row-hover);
+  }
+  * {
+    box-sizing: border-box;
+  }
+  html, body {
+    height: 100%;
+  }
+  body {
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  a {
+    color: var(--riot-green-dark);
+    text-decoration: none;
+  }
+  a:hover {
+    text-decoration: underline;
+  }
+  .wrap {
+    width: 100%;
+    max-width: 52rem;
+    margin: 0 auto;
+    padding: 0 1.25rem;
+  }
+  nav {
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+  }
+  nav .wrap {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    height: 3.5rem;
+  }
+  nav img {
+    height: 1.75rem;
+  }
+  nav .spacer {
+    margin-left: auto;
+  }
+  .pill {
+    display: inline-block;
+    padding: .15rem .55rem;
+    border: 1px solid var(--border);
+    border-radius: 1rem;
+    color: var(--muted);
+    font-size: .75rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .icon-link {
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    color: var(--muted);
+    font-size: .8rem;
+  }
+  .icon-link svg {
+    width: 1.15rem;
+    height: 1.15rem;
+    fill: currentColor;
+  }
+  .icon-link:hover {
+      color: var(--riot-green);
+      text-decoration: none;
+  }
+  .hero {
+    background: linear-gradient(135deg, var(--riot-green) 0%, var(--riot-green-dark) 100%);
+    color: #fff;
+    padding: 2.75rem 0;
+  }
+  .hero h1 {
+    margin: 0 0 .5rem;
+    font-size: 1.9rem;
+    font-weight: 700;
+    letter-spacing: -.01em;
+  }
+  .hero p {
+    margin: 0;
+    max-width: 34rem;
+    color: rgba(255, 255, 255, .88);
+  }
+  main {
+      flex: 1 0 auto;
+      padding: 2rem 0 3rem;
+  }
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+    margin-bottom: 2rem;
+  }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: .6rem;
+    padding: 1rem 1.1rem;
+  }
+  .card .label {
+    color: var(--muted);
+    font-size: .7rem;
+    font-weight: 600;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+  }
+  .card .value {
+    margin-top: .35rem;
+    font-size: 1.5rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  h2 {
+    margin: 0 0 .75rem;
+    font-size: .8rem;
+    font-weight: 600;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: .6rem;
+    overflow-x: auto;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    white-space: nowrap;
+  }
+  th, td {
+    text-align: left;
+    padding: .6rem .9rem;
+    font-variant-numeric: tabular-nums;
+  }
+  th {
+    color: var(--muted);
+    font-weight: 600;
+    font-size: .7rem;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--border);
+  }
+  td {
+    border-top: 1px solid var(--row-border);
+  }
+  tbody tr:hover td {
+    background: var(--row-hover);
+  }
+  .badge {
+    display: inline-block;
+    padding: .1rem .45rem;
+    border-radius: .3rem;
+    background: rgba(64, 166, 135, .12);
+    color: var(--riot-green-dark);
+    font-size: .75rem;
+    font-weight: 600;
+  }
+  .badge.idle {
+    background: rgba(106, 128, 133, .12);
+    color: var(--muted);
+  }
+  footer {
+    background: var(--footer);
+    color: rgba(255, 255, 255, .7);
+    padding: 2rem 0;
+    font-size: .85rem;
+    text-align: center;
+  }
+  footer .tagline {
+    margin: 0 0 1rem;
+    color: #fff;
+  }
+  footer hr {
+    border: 0;
+    border-top: 1px solid rgba(255, 255, 255, .12);
+    margin: 0 0 1rem;
+  }
+  footer .bottom {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: .75rem 1.25rem;
+  }
+  footer .icon-link {
+    color: rgba(255, 255, 255, .7);
+  }
+  footer .icon-link:hover {
+    color: #fff;
+  }
+  .theme-toggle {
+    background: none;
+    border: 0;
+    padding: 0;
+    font: inherit;
+    cursor: pointer;
+  }
+  @media (max-width: 34rem) {
+    .hero h1 {
+      font-size: 1.5rem;
+    }
+    nav .icon-link span {
+      display: none;
+    }
+    .cards {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+</style>
+</head>
+<body>
+<nav>
+  <div class="wrap">
+    <img src="/assets/riot-logo.svg" alt="RIOT">
+    <span class="spacer pill" id="version">&hellip;</span>
+  </div>
+</nav>
+<div class="hero">
+  <div class="wrap">
+    <h1>Webserver demo</h1>
+    <p>
+      This page is served straight from the board and shows the live state of
+      the scheduler: the threads RIOT is running, their stack usage, and the
+      time since boot.
+    </p>
+  </div>
+</div>
+<main>
+  <div class="wrap">
+    <div class="cards">
+      <div class="card">
+        <div class="label">Status</div>
+        <div class="value" id="status"></div>
+      </div>
+      <div class="card">
+        <div class="label">Board</div>
+        <div class="value" id="board"></div>
+      </div>
+      <div class="card">
+        <div class="label">Stack</div>
+        <div class="value" id="stack"></div>
+      </div>
+      <div class="card">
+        <div class="label">Uptime</div>
+        <div class="value" id="uptime"></div>
+      </div>
+      <div class="card">
+        <div class="label">Requests</div>
+        <div class="value" id="requests"></div>
+      </div>
+      <div class="card">
+        <div class="label">Connections</div>
+        <div class="value" id="connections"></div>
+      </div>
+    </div>
+    <h2>Threads</h2>
+    <div class="panel">
+      <table>
+        <thead>
+          <tr>
+            <th>PID</th>
+            <th>Name</th>
+            <th>State</th>
+            <th>Prio</th>
+            <th>Stack</th>
+            <th>Runtime</th>
+            <th>Switches</th>
+          </tr>
+        </thead>
+        <tbody id="threads"></tbody>
+      </table>
+    </div>
+  </div>
+</main>
+<footer>
+  <div class="wrap">
+    <p class="tagline">The friendly Operating System for the Internet of Things.</p>
+    <hr>
+    <div class="bottom">
+      <a class="icon-link" href="https://github.com/RIOT-OS/RIOT" rel="noopener">
+        <svg aria-hidden="true"><use href="/assets/github-logo.svg"/></svg>
+        <span>RIOT-OS/RIOT</span>
+      </a>
+      <a class="icon-link" href="https://riot-os.org" rel="noopener">riot-os.org</a>
+      <button type="button" class="icon-link theme-toggle" id="theme-toggle" aria-label="Toggle color theme">
+        <svg aria-hidden="true"><use href="/assets/theme-icon.svg#moon" id="theme-icon"/></svg>
+      </button>
+    </div>
+  </div>
+</footer>
+<script>
+const formatStack = (used, size) => `${used} / ${size} B`;
+const formatRuntime = (us) => `${(us / 1000).toFixed(1)} ms`;
+const formatUptime = s => `${Math.floor(s / 3600)}h ${Math.floor(s % 3600 / 60)}m ${s % 60}s`;
+
+function render(data) {
+  document.getElementById("status").textContent = "Running";
+  document.getElementById("requests").textContent = data.requests;
+  document.getElementById("uptime").textContent = data.uptime_sec === undefined ? "n/a" : formatUptime(data.uptime_sec);
+  document.getElementById("connections").textContent = `${data.connections_active} / ${data.connections_max}`;
+
+  const body = document.getElementById("threads");
+  body.textContent = "";
+
+  for (const t of data.threads) {
+    const row = document.createElement("tr");
+    const values = [t.pid, t.name, t.state, t.priority, formatStack(t.stack_used, t.stack_size), formatRuntime(t.runtime_us), t.switches];
+
+    values.forEach((value, i) => {
+      const cell = document.createElement("td");
+
+      if (i === 2) {
+        const badge = document.createElement("span");
+        badge.className = value === "running" ? "badge" : "badge idle";
+        badge.textContent = value;
+        cell.appendChild(badge);
+      }
+      else {
+        cell.textContent = value;
+      }
+      row.appendChild(cell);
+    });
+
+    body.appendChild(row);
+  }
+}
+
+async function update() {
+  try {
+    const response = await fetch("/api/stats");
+    render(await response.json());
+  }
+  catch {
+    document.getElementById("status").textContent = "Error";
+  }
+}
+
+async function loadVersion() {
+  try {
+    const res = await fetch("/api/version");
+    const data = await res.json();
+    document.getElementById("version").textContent = data.version;
+    document.getElementById("stack").textContent = data.network_stack.toUpperCase();
+    document.getElementById("board").textContent = data.board;
+  }
+  catch {
+    document.getElementById("version").textContent = "unknown";
+    document.getElementById("stack").textContent = "unknown";
+    document.getElementById("board").textContent = "unknown";
+  }
+}
+
+function currentTheme() {
+  return document.documentElement.dataset.theme ||
+    (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+}
+
+function updateThemeIcon() {
+  document.getElementById("theme-icon").setAttribute("href", `/assets/theme-icon.svg#${currentTheme() === "dark" ? "moon" : "sun"}`);
+}
+
+document.getElementById("theme-toggle").addEventListener("click", () => {
+  const next = currentTheme() === "dark" ? "light" : "dark";
+  localStorage.setItem("theme", next);
+  document.documentElement.dataset.theme = next;
+  updateThemeIcon();
+});
+
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+  if (!localStorage.getItem("theme")) {
+    updateThemeIcon();
+  }
+});
+
+updateThemeIcon();
+loadVersion();
+update();
+setInterval(update, 2000);
+</script>
+</body>
+</html>
