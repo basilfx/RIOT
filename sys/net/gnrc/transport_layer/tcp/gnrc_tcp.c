@@ -83,6 +83,11 @@ static void _close(gnrc_tcp_tcb_t *tcb)
     /* Return if connection is closed */
     state = _gnrc_tcp_fsm_get_state(tcb);
     if (state == FSM_STATE_CLOSED) {
+        /* A TCB that the peer tore down while the user still held it was not
+         * returned to its listening queue back then, so do that now */
+        if (tcb->status & STATUS_ACCEPTED) {
+            _gnrc_tcp_fsm(tcb, FSM_EVENT_CALL_CLOSE, NULL, NULL, 0);
+        }
         TCP_DEBUG_LEAVE;
         return;
     }
@@ -125,7 +130,10 @@ static void _close(gnrc_tcp_tcb_t *tcb)
 static void _abort(gnrc_tcp_tcb_t *tcb)
 {
     TCP_DEBUG_ENTER;
-    if (_gnrc_tcp_fsm_get_state(tcb) != FSM_STATE_CLOSED) {
+    /* An already closed TCB still has to be handled if the user holds it,
+     * see _close() */
+    if ((_gnrc_tcp_fsm_get_state(tcb) != FSM_STATE_CLOSED) ||
+        (tcb->status & STATUS_ACCEPTED)) {
         _gnrc_tcp_fsm(tcb, FSM_EVENT_CALL_ABORT, NULL, NULL, 0);
     }
     TCP_DEBUG_LEAVE;

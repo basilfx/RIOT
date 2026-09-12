@@ -169,8 +169,13 @@ static int _transition_to(gnrc_tcp_tcb_t *tcb, _gnrc_tcp_fsm_state_t state)
                 _gnrc_tcp_rcvbuf_release_buffer(tcb);
                 TCP_DEBUG_INFO("Connection closed");
             }
-            /* Re-open connection as listenng */
-            else
+            /* Re-open connection as listenng, unless the user is still
+             * working on it. Re-opening an accepted TCB would silently
+             * replace the connection the user holds by the next one
+             * accepted on the same TCB, handing the user the data of a
+             * different peer. Such a TCB is re-opened once the user closes
+             * it, see _fsm_call_close() and _fsm_call_abort() */
+            else if (!(tcb->status & STATUS_ACCEPTED))
             {
                 TCP_DEBUG_INFO("Connection reopend");
                 state = FSM_STATE_LISTEN;
@@ -182,6 +187,18 @@ static int _transition_to(gnrc_tcp_tcb_t *tcb, _gnrc_tcp_fsm_state_t state)
         case FSM_STATE_LISTEN:
             /* Clear Accepted Status */
             tcb->status &= ~(STATUS_ACCEPTED);
+
+            /* Discard data of the previous connection that the user never
+             * read and restore the receive window. A listening TCB keeps its
+             * receive buffer across connections, so without this the
+             * leftover bytes would be handed to the user as if the next
+             * connection accepted on this TCB had sent them, and the
+             * receive window would stay reduced by their number */
+            if (tcb->rcv_buf_raw != NULL) {
+                ringbuffer_init(&tcb->rcv_buf, (char *) tcb->rcv_buf_raw,
+                                GNRC_TCP_RCV_BUF_SIZE);
+            }
+            tcb->rcv_wnd = CONFIG_GNRC_TCP_DEFAULT_WINDOW;
 
             /* Clear address info */
 #ifdef MODULE_GNRC_IPV6
@@ -401,6 +418,10 @@ static int _fsm_call_close(gnrc_tcp_tcb_t *tcb)
 {
     TCP_DEBUG_ENTER;
 
+    /* The user is done with this TCB, so a TCB that belongs to a listening
+     * queue may be re-opened as listening again, see _transition_to() */
+    tcb->status &= ~(STATUS_ACCEPTED);
+
     if (tcb->state == FSM_STATE_SYN_RCVD || tcb->state == FSM_STATE_ESTABLISHED ||
         tcb->state == FSM_STATE_CLOSE_WAIT) {
 
@@ -421,6 +442,12 @@ static int _fsm_call_close(gnrc_tcp_tcb_t *tcb)
     }
     else if (tcb->state == FSM_STATE_CLOSE_WAIT) {
         _transition_to(tcb, FSM_STATE_LAST_ACK);
+    }
+    /* The peer had already torn down the connection while the user was still
+     * holding this TCB, so the transition was deferred back then */
+    else if (tcb->state == FSM_STATE_CLOSED) {
+        _transition_to(tcb, (tcb->status & STATUS_LISTENING) ? FSM_STATE_LISTEN
+                                                             : FSM_STATE_CLOSED);
     }
     TCP_DEBUG_LEAVE;
     return 0;
@@ -449,6 +476,9 @@ static int _fsm_call_abort(gnrc_tcp_tcb_t *tcb)
                             tcb->rcv_nxt, NULL, 0);
         _gnrc_tcp_pkt_send(tcb, out_pkt, seq_con, false);
     }
+
+    /* The user is done with this TCB, see _fsm_call_close() */
+    tcb->status &= ~(STATUS_ACCEPTED);
 
     /* From here on any state must transition into CLOSED state */
     _transition_to(tcb, FSM_STATE_CLOSED);

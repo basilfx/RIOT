@@ -39,10 +39,20 @@ typedef struct {
     kernel_pid_t iface;
     evtimer_msg_event_t timeout_event;
     gnrc_pktsnip_t *pending;
+    uint32_t last_used;             /**< _use_counter at the last use */
 } _arp_entry_t;
 
 static evtimer_msg_t _evtimer;
 static _arp_entry_t _cache[CONFIG_GNRC_IPV4_ARP_CACHE_SIZE];
+
+/**
+ * @brief   Counter that orders the cache entries by their last use.
+ *
+ * Incremented on every use of an entry, so a smaller value marks an entry
+ * that was used longer ago. A wrap around would only ever pick a suboptimal
+ * entry for reuse, and at one increment per packet it is far out of reach.
+ */
+static uint32_t _use_counter;
 
 static void _sched_timeout(_arp_entry_t *entry, uint32_t ms)
 {
@@ -53,24 +63,19 @@ static void _sched_timeout(_arp_entry_t *entry, uint32_t ms)
     evtimer_add_msg(&_evtimer, &entry->timeout_event, gnrc_ipv4_pid);
 }
 
+/**
+ * @brief   Looks up the entry for @p addr on @p iface, and marks it as used.
+ *
+ * Every caller looks the entry up in order to act on it, either to send to
+ * that address or to refresh it from a packet received from it, so the
+ * lookup itself is what orders the entries for @ref _pick_victim().
+ */
 static _arp_entry_t *_find(kernel_pid_t iface, const ipv4_addr_t *addr)
 {
     for (unsigned i = 0; i < CONFIG_GNRC_IPV4_ARP_CACHE_SIZE; i++) {
         if ((_cache[i].state != _STATE_FREE) && (_cache[i].iface == iface) &&
             ipv4_addr_equal(&_cache[i].ipv4, addr)) {
-            return &_cache[i];
-        }
-    }
-    return NULL;
-}
-
-static _arp_entry_t *_alloc(kernel_pid_t iface, const ipv4_addr_t *addr)
-{
-    for (unsigned i = 0; i < CONFIG_GNRC_IPV4_ARP_CACHE_SIZE; i++) {
-        if (_cache[i].state == _STATE_FREE) {
-            memset(&_cache[i], 0, sizeof(_cache[i]));
-            _cache[i].ipv4 = *addr;
-            _cache[i].iface = iface;
+            _cache[i].last_used = ++_use_counter;
             return &_cache[i];
         }
     }
@@ -85,6 +90,67 @@ static void _free(_arp_entry_t *entry)
         entry->pending = NULL;
     }
     entry->state = _STATE_FREE;
+}
+
+/**
+ * @brief   Picks the entry to reuse when every entry of a full cache is
+ *          taken.
+ *
+ * A reachable entry is preferred over an incomplete one, as the latter has a
+ * resolution in flight and a packet waiting on it. Among the candidates the
+ * one used longest ago is picked.
+ */
+static _arp_entry_t *_pick_victim(void)
+{
+    _arp_entry_t *victim = NULL;
+
+    for (unsigned i = 0; i < CONFIG_GNRC_IPV4_ARP_CACHE_SIZE; i++) {
+        if (_cache[i].state != _STATE_REACHABLE) {
+            continue;
+        }
+        if ((victim == NULL) || (_cache[i].last_used < victim->last_used)) {
+            victim = &_cache[i];
+        }
+    }
+    if (victim != NULL) {
+        return victim;
+    }
+    for (unsigned i = 0; i < CONFIG_GNRC_IPV4_ARP_CACHE_SIZE; i++) {
+        if ((victim == NULL) || (_cache[i].last_used < victim->last_used)) {
+            victim = &_cache[i];
+        }
+    }
+    return victim;
+}
+
+static _arp_entry_t *_alloc(kernel_pid_t iface, const ipv4_addr_t *addr)
+{
+    _arp_entry_t *entry = NULL;
+
+    for (unsigned i = 0; i < CONFIG_GNRC_IPV4_ARP_CACHE_SIZE; i++) {
+        if (_cache[i].state == _STATE_FREE) {
+            entry = &_cache[i];
+            break;
+        }
+    }
+    /* A full cache reuses its least useful entry rather than refusing to
+     * resolve. Refusing leaves this host unable to reach any address it has
+     * not resolved yet, and since an entry is kept for
+     * CONFIG_GNRC_IPV4_ARP_CACHE_TIMEOUT_MS, on a segment holding more hosts
+     * than the cache has entries that is indistinguishable from a loss of
+     * connectivity: a peer whose SYN arrives cannot even be answered */
+    if (entry == NULL) {
+        entry = _pick_victim();
+        if (entry == NULL) {
+            return NULL;
+        }
+        _free(entry);
+    }
+    memset(entry, 0, sizeof(*entry));
+    entry->ipv4 = *addr;
+    entry->iface = iface;
+    entry->last_used = ++_use_counter;
+    return entry;
 }
 
 /**
@@ -229,6 +295,7 @@ void gnrc_ipv4_arp_request(gnrc_netif_t *netif, const ipv4_addr_t *dst,
 void gnrc_ipv4_arp_handle_pkt(gnrc_netif_t *netif, gnrc_pktsnip_t *pkt)
 {
     arp_ipv4_hdr_t hdr;
+    const ipv4_addr_t *ours = NULL;
     bool is_reply;
 
     assert((netif != NULL) && (pkt != NULL));
@@ -249,14 +316,30 @@ void gnrc_ipv4_arp_handle_pkt(gnrc_netif_t *netif, gnrc_pktsnip_t *pkt)
     }
     is_reply = (byteorder_ntohs(hdr.hdr.op) == ARP_OPCODE_REPLY);
 
-    /* opportunistically learn/refresh the sender's mapping (this also
-     * handles gratuitous ARP); skip ARP probes (RFC 5227) which carry no
-     * sender address */
+    /* Determine whether the packet asks after one of this host's addresses,
+     * which is the case both for a request from a peer that is about to talk
+     * to this host and for the reply to a request of this host's own */
+    for (unsigned i = 0; i < CONFIG_GNRC_NETIF_IPV4_ADDRS_NUMOF; i++) {
+        if ((netif->ipv4.addrs_flags[i] != GNRC_NETIF_IPV4_ADDRS_FLAGS_STATE_UNUSED) &&
+            ipv4_addr_equal(&netif->ipv4.addrs[i], &hdr.tpa)) {
+            ours = &netif->ipv4.addrs[i];
+            break;
+        }
+    }
+
+    /* Learn or refresh the sender's mapping. An entry that is already held
+     * is always refreshed, which is what keeps the cache correct when a peer
+     * announces a new link layer address by gratuitous ARP. A new entry is
+     * only added for a packet addressed to this host, as every other host on
+     * the segment keeps broadcasting requests for peers this host never
+     * talks to, and holding those for
+     * CONFIG_GNRC_IPV4_ARP_CACHE_TIMEOUT_MS would evict the peers that do
+     * matter. ARP probes (RFC 5227) carry no sender address and are skipped */
     if (hdr.spa.u32.u32 != 0) {
         _arp_entry_t *entry = _find(netif->pid, &hdr.spa);
         bool was_incomplete;
 
-        if (entry == NULL) {
+        if ((entry == NULL) && (ours != NULL)) {
             entry = _alloc(netif->pid, &hdr.spa);
         }
         if (entry != NULL) {
@@ -271,19 +354,8 @@ void gnrc_ipv4_arp_handle_pkt(gnrc_netif_t *netif, gnrc_pktsnip_t *pkt)
             }
         }
     }
-    if (!is_reply) {
-        const ipv4_addr_t *ours = NULL;
-
-        for (unsigned i = 0; i < CONFIG_GNRC_NETIF_IPV4_ADDRS_NUMOF; i++) {
-            if ((netif->ipv4.addrs_flags[i] != GNRC_NETIF_IPV4_ADDRS_FLAGS_STATE_UNUSED) &&
-                ipv4_addr_equal(&netif->ipv4.addrs[i], &hdr.tpa)) {
-                ours = &netif->ipv4.addrs[i];
-                break;
-            }
-        }
-        if (ours != NULL) {
-            _send_reply(netif, hdr.sha, ours, &hdr.spa);
-        }
+    if (!is_reply && (ours != NULL)) {
+        _send_reply(netif, hdr.sha, ours, &hdr.spa);
     }
     gnrc_pktbuf_release(pkt);
 }
