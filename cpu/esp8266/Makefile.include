@@ -51,5 +51,10 @@ LINKFLAGS += -Tesp8266.rom.ld
 LINKFLAGS += -Tesp8266.riot-os.ld
 LINKFLAGS += -Tesp8266.peripherals.ld
 
+# The generic check whether the linker supports --no-warn-rwx-segments links a
+# test program against libc, which fails for the ESP8266 because of missing
+# system calls. Therefore, the linker itself is checked for that option.
+LINKER_SUPPORTS_NOWARNRWX ?= $(shell $(TARGET_ARCH)-ld --help 2> /dev/null | grep -q -- --no-warn-rwx-segments && echo 1 || echo 0)
+
 LINKFLAGS += -Wl,-wrap=pp_attach
 LINKFLAGS += -Wl,-wrap=pm_attach
