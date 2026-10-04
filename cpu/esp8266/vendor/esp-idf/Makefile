@@ -11,3 +11,7 @@ ifneq (, $(filter esp_idf_heap, $(USEMODULE)))
 endif
 
 include $(RIOTBASE)/Makefile.base
+
+# vendor code uses format specifiers that do not match the types of newer
+# compiler versions, where uint32_t is unsigned long
+CFLAGS += -Wno-format
