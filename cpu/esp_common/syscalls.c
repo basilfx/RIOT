@@ -523,8 +523,14 @@ struct _reent* __getreent(void) {
     return _GLOBAL_REENT;
 }
 
-/* in older versions of newlib, the OS has to allocate a reentry structure */
-#ifndef __ATTRIBUTE_IMPURE_DATA__
+/*
+ * In older versions of newlib patched by Espressif, the OS has to allocate a
+ * reentry structure. More recent versions of Espressif's newlib define
+ * `__ATTRIBUTE_IMPURE_DATA__`, and unpatched newlib versions allocate the
+ * reentry structure themselves, which is assumed for newlib 4 and later.
+ */
+#if !defined(__ATTRIBUTE_IMPURE_DATA__) && (!defined(__NEWLIB__) || (__NEWLIB__ < 4))
+#define SYSCALLS_ALLOCATE_GLOBAL_REENT  1
 static struct _reent s_reent;
 #endif
 
@@ -542,7 +548,7 @@ void syscalls_init(void)
      * See https://github.com/espressif/newlib-esp32/commit/ad51d0006a0aaf17aa61ec34221add09bfe01f0c
      * for the commit that introduced the change.
      */
-#ifndef __ATTRIBUTE_IMPURE_DATA__
+#ifdef SYSCALLS_ALLOCATE_GLOBAL_REENT
     _GLOBAL_REENT = &s_reent;
 #endif
 
