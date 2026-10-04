@@ -68,7 +68,7 @@ int pthread_setcancelstate(int state, int *oldstate)
  * Following functions implement the locking mechanism for newlib.
  */
 
-#ifdef CPU_ESP8266
+#if defined(CPU_ESP8266) && !defined(_RETARGETABLE_LOCKING)
 /**
  * _malloc_rmtx is defined as static variable to avoid recursive calls of
  * malloc when _malloc_r tries to lock __malloc_lock_object the first
@@ -82,6 +82,10 @@ static rmutex_t _malloc_rmtx = RMUTEX_INIT;
  * the address of newlib's static variable __malloc_lock_object.
  */
 static _lock_t *__malloc_static_object = NULL;
+
+#endif
+
+#ifdef CPU_ESP8266
 
 #define _lock_critical_enter()
 #define _lock_critical_exit()
@@ -121,7 +125,7 @@ void IRAM_ATTR _lock_init_recursive(_lock_t *lock)
 {
     assert(lock != NULL);   /* lock must not be NULL */
 
-#ifdef CPU_ESP8266
+#if defined(CPU_ESP8266) && !defined(_RETARGETABLE_LOCKING)
     /* _malloc_rmtx is static and has not to be allocated */
     if (lock == __malloc_static_object) {
         return;
@@ -145,7 +149,7 @@ void IRAM_ATTR _lock_close(_lock_t *lock)
 {
     /* locking variable has to be valid and initialized */
     assert(lock != NULL && *lock != 0);
-#ifdef CPU_ESP8266
+#if defined(CPU_ESP8266) && !defined(_RETARGETABLE_LOCKING)
     assert(lock != __malloc_static_object);
 #endif
 
@@ -162,7 +166,7 @@ void IRAM_ATTR _lock_close_recursive(_lock_t *lock)
 {
     /* locking variable has to be valid and initialized */
     assert(lock != NULL && *lock != 0);
-#ifdef CPU_ESP8266
+#if defined(CPU_ESP8266) && !defined(_RETARGETABLE_LOCKING)
     assert(lock != __malloc_static_object);
 #endif
 
@@ -202,7 +206,7 @@ void IRAM_ATTR _lock_acquire_recursive(_lock_t *lock)
     assert(lock != NULL);   /* lock must not be NULL */
     assert(!irq_is_in());   /* _lock_acquire must not be called in
                                interrupt context */
-#ifdef CPU_ESP8266
+#if defined(CPU_ESP8266) && !defined(_RETARGETABLE_LOCKING)
     /**
      * Since we don't have direct access to newlib's static variable
      * __malloc_lock_object, we have to rely on the fact that function
@@ -332,16 +336,20 @@ void IRAM_ATTR _lock_release_recursive(_lock_t *lock)
 static mutex_t  s_shared_mutex = MUTEX_INIT;
 static rmutex_t s_shared_rmutex = RMUTEX_INIT;
 
-/* definition of locks required by the newlib if retargetable locking is used */
-extern struct __lock __attribute__((alias("s_shared_rmutex"))) __lock___sinit_recursive_mutex;
-extern struct __lock __attribute__((alias("s_shared_rmutex"))) __lock___sfp_recursive_mutex;
-extern struct __lock __attribute__((alias("s_shared_rmutex"))) __lock___atexit_recursive_mutex;
-extern struct __lock __attribute__((alias("s_shared_rmutex"))) __lock___malloc_recursive_mutex;
-extern struct __lock __attribute__((alias("s_shared_rmutex"))) __lock___env_recursive_mutex;
-extern struct __lock __attribute__((alias("s_shared_mutex"))) __lock___at_quick_exit_mutex;
-extern struct __lock __attribute__((alias("s_shared_mutex"))) __lock___tz_mutex;
-extern struct __lock __attribute__((alias("s_shared_mutex"))) __lock___dd_hash_mutex;
-extern struct __lock __attribute__((alias("s_shared_mutex"))) __lock___arc4random_mutex;
+/*
+ * Definition of locks required by newlib if retargetable locking is used.
+ * Since `struct __lock` may be an incomplete type, the locks are
+ * declared with the types of the variables they are aliases of.
+ */
+extern rmutex_t __attribute__((alias("s_shared_rmutex"))) __lock___sinit_recursive_mutex;
+extern rmutex_t __attribute__((alias("s_shared_rmutex"))) __lock___sfp_recursive_mutex;
+extern rmutex_t __attribute__((alias("s_shared_rmutex"))) __lock___atexit_recursive_mutex;
+extern rmutex_t __attribute__((alias("s_shared_rmutex"))) __lock___malloc_recursive_mutex;
+extern rmutex_t __attribute__((alias("s_shared_rmutex"))) __lock___env_recursive_mutex;
+extern mutex_t  __attribute__((alias("s_shared_mutex"))) __lock___at_quick_exit_mutex;
+extern mutex_t  __attribute__((alias("s_shared_mutex"))) __lock___tz_mutex;
+extern mutex_t  __attribute__((alias("s_shared_mutex"))) __lock___dd_hash_mutex;
+extern mutex_t  __attribute__((alias("s_shared_mutex"))) __lock___arc4random_mutex;
 
 /* map newlib's `__retarget_*` functions to the existing `_lock_*` functions */
 
