@@ -394,6 +394,12 @@ static int32_t rand_wrapper(void)
     return (int32_t)esp_random();
 }
 
+static int32_t nvs_open_wrapper(const char *name, uint32_t open_mode,
+                                uint32_t *out_handle)
+{
+    return nvs_open(name, (nvs_open_mode)open_mode, out_handle);
+}
+
 void *osi_task_top_sp(void)
 {
     thread_t *active_thread = thread_get_active();
@@ -461,7 +467,7 @@ const wifi_osi_funcs_t s_wifi_osi_funcs = {
     .nvs_get_u8 = nvs_get_u8,
     .nvs_set_u16 = nvs_set_u16,
     .nvs_get_u16 = nvs_get_u16,
-    .nvs_open = nvs_open,
+    .nvs_open = nvs_open_wrapper,
     .nvs_close = nvs_close,
     .nvs_commit = nvs_commit,
     .nvs_set_blob = nvs_set_blob,

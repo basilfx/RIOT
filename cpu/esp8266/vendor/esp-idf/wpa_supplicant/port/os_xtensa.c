@@ -44,7 +44,7 @@ unsigned long os_random(void)
 unsigned long r_rand(void) __attribute__((alias("os_random")));
 
 
-int os_get_random(unsigned char *buf, size_t len)
+int32_t os_get_random(unsigned char *buf, size_t len)
 {
     unsigned int i, j;
     unsigned long tmp;
